@@ -8,7 +8,7 @@
 #define MyAppName "Abyssfin"
 #define MyAppVersion "@VERSION_STRING@"
 #define MyAppPublisher "Abyssfin"
-#define MyAppURL "https://github.com/ArijKhan1/Abyssfin"
+#define MyAppURL "https://github.com/ArijKhan1/abyssfin"
 #define MyAppExeName "Abyssfin.exe"
 #define MyAppGUID "{{a78bea4a-5bd0-4aa3-bdf3-579b4f58a921}"
 #define DeployPath "@CMAKE_INSTALL_PREFIX@"
