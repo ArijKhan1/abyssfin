@@ -1,0 +1,28 @@
+[Desktop Entry]
+Version=1.0
+Name=Abyssfin
+Comment=Jellyfin desktop client with Abyss theme and Picture-in-Picture
+Exec=abyssfin
+Icon=org.abyssfin.Abyssfin
+Terminal=false
+Type=Application
+StartupWMClass=org.abyssfin.Abyssfin
+Categories=AudioVideo;Video;Player;TV;
+
+Actions=DesktopF;DesktopW;TVF;TVW
+
+[Desktop Action DesktopF]
+Name=Desktop [Fullscreen]
+Exec=abyssfin --fullscreen --desktop
+
+[Desktop Action DesktopW]
+Name=Desktop [Windowed]
+Exec=abyssfin --windowed --desktop
+
+[Desktop Action TVF]
+Name=TV [Fullscreen]
+Exec=abyssfin --fullscreen --tv
+
+[Desktop Action TVW]
+Name=TV [Windowed]
+Exec=abyssfin --windowed --tv

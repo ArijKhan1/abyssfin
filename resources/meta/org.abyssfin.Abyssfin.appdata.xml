@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.abyssfin.Abyssfin</id>
+  <name>Abyssfin</name>
+  <summary>Jellyfin desktop client with Abyss theme and Picture-in-Picture</summary>
+  <developer id="org.abyssfin">
+    <name>Abyssfin</name>
+  </developer>
+  <project_license>GPL-2.0</project_license>
+  <metadata_license>CC0-1.0</metadata_license>
+  <url type="homepage">https://github.com/ArijKhan1/Abyssfin</url>
+  <url type="help">https://github.com/ArijKhan1/Abyssfin/blob/main/README.md</url>
+  <url type="bugtracker">https://github.com/ArijKhan1/Abyssfin/issues</url>
+
+  <provides>
+    <binary>abyssfin</binary>
+  </provides>
+  <launchable type="desktop-id">org.abyssfin.Abyssfin.desktop</launchable>
+
+  <description>
+    <p>Abyssfin is a Jellyfin desktop client built with Qt WebEngine and libmpv. It includes built-in Abyss theme support and Picture-in-Picture playback.</p>
+  </description>
+</component>
