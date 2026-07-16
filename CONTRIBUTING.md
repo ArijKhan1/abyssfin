@@ -1,16 +1,15 @@
-# Contributing to Jellyfin Desktop
+# Contributing to Abyssfin
 
 ## Running Tests
 
-Jellyfin Desktop uses Qt Test for unit testing.
+Abyssfin uses Qt Test for unit testing.
 
 ### Building Tests
 
 Tests are built automatically when you build the project:
 
 ```sh
-cmake -B build
-cmake --build build
+dev/macos/build.sh
 ```
 
 ### Running Tests
@@ -28,6 +27,8 @@ Or run individual test executables directly:
 cd build
 ./tests/test_systemcomponent
 ```
+
+On macOS, use `dev/macos/test.sh` to set up the Qt/mpv runtime environment first.
 
 ### Writing Tests
 

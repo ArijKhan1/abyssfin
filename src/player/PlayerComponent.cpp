@@ -33,6 +33,16 @@
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+static QStringList variantListToCommandArgs(const QVariantList& args)
+{
+  QStringList command;
+  command.reserve(args.size());
+  for (const QVariant& value : args)
+    command << value.toString();
+  return command;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 static void wakeup_cb(void *context)
 {
   auto *player = static_cast<PlayerComponent*>(context);
@@ -335,7 +345,7 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
 
   command << extraArgs;
 
-  m_mpv->command( command);
+  m_mpv->command(variantListToCommandArgs(command));
 
   QVariantMap jellyfinMetadata = metadata["metadata"].toMap();
   QUrl jellyfinBaseUrl = qurl.adjusted(QUrl::RemovePath | QUrl::RemoveQuery);
@@ -851,7 +861,7 @@ void PlayerComponent::seekTo(qint64 ms)
   }
   double timeSecs = ms / 1000.0;
   QVariantList args = (QVariantList() << "seek" << timeSecs << "absolute+exact");
-  m_mpv->command( args);
+  m_mpv->command(variantListToCommandArgs(args));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

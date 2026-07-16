@@ -176,6 +176,12 @@
         "default": true
       },
       {
+        "value": "enableAbyssSpotlight",
+        "display_name": "Enable Abyss Spotlight",
+        "help": "Injects the Abyss Spotlight home banner if it is missing from the server web client. Requires the Abyss server setup to have installed spotlight files in jellyfin-web/ui/.",
+        "default": true
+      },
+      {
         "value": "enableAbyssTheme",
         "display_name": "Enable Abyss Theme",
         "help": "Automatically applies the Abyss dark theme to the Jellyfin web client. Disable this if your server already provides Abyss via Custom CSS.",

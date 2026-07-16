@@ -3,6 +3,7 @@ name: build
 on:
   push:
     branches:
+      - main
       - release
       - prerelease
       - test
@@ -14,9 +15,6 @@ jobs:
 
   windows:
     uses: ./.github/workflows/build-windows.yml
-
-  linux:
-    uses: ./.github/workflows/build-linux.yml
 
   appimage:
     uses: ./.github/workflows/build-appimage.yml

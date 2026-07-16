@@ -461,7 +461,16 @@ int main(int argc, char *argv[])
     }
 
 #if defined(Q_OS_MAC) && defined(NDEBUG)
-    PFMoveToApplicationsFolderIfNecessary();
+    // LetsMove nests a Cocoa run loop / NSTask wait. Doing that after
+    // QtWebEngineQuick::initialize() SIGSEGVs on modern macOS (Qt 6.10+).
+    // Only offer the prompt for bundled DMG/release apps, never for /build/ runs.
+    {
+      const QString appDir = QCoreApplication::applicationDirPath();
+      const bool isDevBuild = appDir.contains("/build/");
+      const bool hasBundledWebEngine = QFileInfo(appDir + "/../Frameworks/QtWebEngineCore.framework").exists();
+      if (!isDevBuild && hasBundledWebEngine)
+        PFMoveToApplicationsFolderIfNecessary();
+    }
 #endif
 
     UniqueApplication* uniqueApp = new UniqueApplication(&app);

@@ -7,16 +7,16 @@ OUTPUT_DIR="${1:-$PROJECT_ROOT/build/appimage}"
 
 mkdir -p "$OUTPUT_DIR"
 
-echo "Building Jellyfin Desktop AppImage..."
+echo "Building Abyssfin AppImage..."
 docker build \
-    -t jellyfin-desktop-appimage \
+    -t abyssfin-appimage \
     -f "$SCRIPT_DIR/Dockerfile" \
     "$PROJECT_ROOT"
 
 echo "Extracting AppImage..."
 docker run --rm \
     -v "$OUTPUT_DIR:/host-output" \
-    jellyfin-desktop-appimage
+    abyssfin-appimage
 
 echo ""
-echo "AppImage: $OUTPUT_DIR/JellyfinDesktop-x86_64.AppImage"
+echo "AppImage: $OUTPUT_DIR/Abyssfin-x86_64.AppImage"

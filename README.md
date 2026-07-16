@@ -9,7 +9,7 @@ Abyssfin is a Jellyfin desktop client built on the Qt WebEngine + libmpv stack. 
 ### Abyss Theme
 - Automatically injects the Abyss dark theme into the Jellyfin web client
 - Sets the Jellyfin base theme to Dark for correct Abyss rendering
-- Optional custom Abyss CSS URL in client settings
+- Client-side Spotlight banner injection (uses server-installed `jellyfin-web/ui/spotlight.html`)
 - Abyss-styled server connection screen
 
 ### Picture-in-Picture
@@ -36,17 +36,25 @@ Build from source for now. See [dev/](dev/) for platform-specific build instruct
 
 Open **Client Settings** from the Jellyfin menu to configure:
 - **Enable Abyss Theme** — on by default; disable if your server already applies Abyss via Custom CSS
-- **Abyss Theme URL** — optional override for the CSS URL (defaults to the Abyss CDN)
+- **Enable Abyss Spotlight** — on by default; injects the home banner if the cached web client is missing it
+
+If Spotlight still does not appear, verify the Abyss installer patched your server (`jellyfin-web/ui/spotlight.html` must exist) and clear Abyssfin's cache at `~/Library/Caches/Abyssfin/` (macOS).
+
+## Quick Start (macOS)
+
+```bash
+git clone --recursive https://github.com/ArijKhan1/abyssfin.git
+cd abyssfin
+dev/macos/setup.sh   # first time only
+dev/macos/build.sh
+dev/macos/run.sh
+```
 
 ## Building
 
 See [dev/macos/README.md](dev/macos/README.md), [dev/windows/README.md](dev/windows/README.md), or [dev/appimage/](dev/appimage/) for platform build instructions.
 
-```bash
-mkdir build && cd build
-cmake ..
-cmake --build .
-```
+Clone with submodules (`git clone --recursive`) or run `git submodule update --init --recursive` after cloning.
 
 ## File Locations
 

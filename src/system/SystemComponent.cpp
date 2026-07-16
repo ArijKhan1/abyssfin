@@ -600,6 +600,7 @@ QString SystemComponent::getNativeShellScript()
     ":/web-client/extension/updatePlugin.js",
     ":/web-client/extension/connectivityHelper.js",
     ":/web-client/extension/abyssTheme.js",
+    ":/web-client/extension/abyssSpotlight.js",
     ":/web-client/extension/nativeshell.js"
   };
 
