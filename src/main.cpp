@@ -12,6 +12,7 @@
 #include <QCommandLineOption>
 #include <QDebug>
 #include <QSettings>
+#include <QTimer>
 
 #include "shared/Names.h"
 #include "system/SystemComponent.h"
@@ -519,7 +520,14 @@ int main(int argc, char *argv[])
       Q_UNUSED(url);
 
       if (object == nullptr)
-        throw FatalException(QObject::tr("Failed to parse application engine script."));
+      {
+        qCritical() << "Failed to parse application engine script.";
+        QTimer::singleShot(0, &app, []() {
+          auto* msg = new ErrorMessage(QObject::tr("Failed to parse application engine script."), true);
+          msg->show();
+        });
+        return;
+      }
 
       QQuickWindow* window = Globals::MainWindow();
 

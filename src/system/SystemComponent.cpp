@@ -4,6 +4,7 @@
 #include <QtNetwork/qnetworkinterface.h>
 #include <QGuiApplication>
 #include <QCursor>
+#include <QScreen>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
@@ -339,6 +340,9 @@ void SystemComponent::checkServerConnectivity(QString url)
     m_connectivityCheckReply = nullptr;
   }
 
+  if (m_pendingConnectivityUrl != url)
+    m_connectivityRetryCount = 0;
+
   // Store for retry
   m_pendingConnectivityUrl = url;
 
@@ -386,11 +390,19 @@ void SystemComponent::checkServerConnectivity(QString url)
       }
 
       if (success) {
+        m_connectivityRetryCount = 0;
         m_connectivityRetryTimer->stop();
         m_pendingConnectivityUrl.clear();
         emit serverConnectivityResult(url, success, fullResolvedUrl);
       } else {
-        m_connectivityRetryTimer->start(CONNECTIVITY_RETRY_INTERVAL_MS);
+        m_connectivityRetryCount++;
+        if (m_connectivityRetryCount >= CONNECTIVITY_MAX_RETRIES) {
+          m_connectivityRetryCount = 0;
+          m_pendingConnectivityUrl.clear();
+          emit serverConnectivityResult(url, false, fullResolvedUrl);
+        } else {
+          m_connectivityRetryTimer->start(CONNECTIVITY_RETRY_INTERVAL_MS);
+        }
       }
 
       reply->deleteLater();
@@ -425,6 +437,7 @@ void SystemComponent::cancelServerConnectivity()
   }
 
   m_pendingConnectivityUrl.clear();
+  m_connectivityRetryCount = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -541,9 +554,36 @@ void SystemComponent::hello(const QString& version)
 /////////////////////////////////////////////////////////////////////////////////////////
 QString SystemComponent::getNativeShellScript()
 {
-  static QString cachedScript;
-  if (!cachedScript.isEmpty()) {
-    return cachedScript;
+  static QString cachedScriptBodies;
+  if (cachedScriptBodies.isEmpty())
+  {
+    auto loadScript = [](const QString& scriptPath) -> QString {
+      QFile file(scriptPath);
+      if (!file.open(QIODevice::ReadOnly)) {
+        qCritical() << "Failed to load" << scriptPath << "from qrc";
+        return "";
+      }
+      return QTextStream(&file).readAll();
+    };
+
+    QStringList scriptPaths = {
+      ":/qtwebchannel/qwebchannel.js",
+      ":/web-client/extension/nativeshell.js",
+      ":/web-client/extension/mpvVideoPlayer.js",
+      ":/web-client/extension/mpvAudioPlayer.js",
+      ":/web-client/extension/updatePlugin.js",
+      ":/web-client/extension/connectivityHelper.js",
+      ":/web-client/extension/playbackHelpers.js",
+      ":/web-client/extension/abyssTheme.js",
+      ":/web-client/extension/abyssSpotlight.js",
+    ":/web-client/extension/pipControls.js",
+    ":/web-client/extension/downloadBridge.js",
+    ":/web-client/extension/offlinePlugin.js",
+    ":/web-client/extension/inputPlugin.js"
+    };
+
+    for (const QString& scriptPath : scriptPaths)
+      cachedScriptBodies += loadScript(scriptPath) + "\n";
   }
 
   auto path = SettingsComponent::Get().getExtensionPath();
@@ -578,38 +618,48 @@ QString SystemComponent::getNativeShellScript()
   clientData.insert("sections", QJsonValue::fromVariant(SettingsComponent::Get().orderedSections()));
   clientData.insert("settingsDescriptions", QJsonValue::fromVariant(settingsDescriptions));
   clientData.insert("settings", QJsonValue::fromVariant(SettingsComponent::Get().allValues()));
+  clientData.insert("nativeDownloadHub", true);
+
+  const bool useBundledTheme = SettingsComponent::Get()
+      .value(SETTINGS_SECTION_MAIN, "useBundledAbyssTheme").toBool();
+  const QString customThemeUrl = SettingsComponent::Get()
+      .value(SETTINGS_SECTION_MAIN, "abyssThemeUrl").toString().trimmed();
+  if (useBundledTheme && customThemeUrl.isEmpty())
+  {
+    QFile abyssCss(":/themes/abyss.css");
+    if (abyssCss.open(QIODevice::ReadOnly))
+      clientData.insert("bundledAbyssCss", QString::fromUtf8(abyssCss.readAll()));
+  }
 
   QString jmpInfoDeclaration = "const jmpInfo = JSON.parse(window.atob(\"" +
                                 QJsonDocument(clientData).toJson(QJsonDocument::Compact).toBase64() +
                                 "\"));\nwindow.jmpInfo = jmpInfo;\n";
 
-  auto loadScript = [](const QString& scriptPath) -> QString {
-    QFile file(scriptPath);
-    if (!file.open(QIODevice::ReadOnly)) {
-      qCritical() << "Failed to load" << scriptPath << "from qrc";
-      return "";
-    }
-    return QTextStream(&file).readAll();
-  };
+  return jmpInfoDeclaration + cachedScriptBodies;
+}
 
-  QStringList scriptPaths = {
-    ":/qtwebchannel/qwebchannel.js",
-    ":/web-client/extension/mpvVideoPlayer.js",
-    ":/web-client/extension/mpvAudioPlayer.js",
-    ":/web-client/extension/inputPlugin.js",
-    ":/web-client/extension/updatePlugin.js",
-    ":/web-client/extension/connectivityHelper.js",
-    ":/web-client/extension/abyssTheme.js",
-    ":/web-client/extension/abyssSpotlight.js",
-    ":/web-client/extension/nativeshell.js"
-  };
+/////////////////////////////////////////////////////////////////////////////////////////
+QVariantMap SystemComponent::globalCursorPosition() const
+{
+  const QPoint pos = QCursor::pos();
+  QScreen* screen = QGuiApplication::screenAt(pos);
+  if (!screen)
+    screen = QGuiApplication::primaryScreen();
 
-  cachedScript = jmpInfoDeclaration;
-  for (const QString& scriptPath : scriptPaths) {
-    cachedScript += loadScript(scriptPath) + "\n";
+  QVariantMap result;
+  result.insert("x", pos.x());
+  result.insert("y", pos.y());
+
+  if (screen)
+  {
+    const QRect avail = screen->availableGeometry();
+    result.insert("screenX", avail.x());
+    result.insert("screenY", avail.y());
+    result.insert("screenWidth", avail.width());
+    result.insert("screenHeight", avail.height());
   }
 
-  return cachedScript;
+  return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

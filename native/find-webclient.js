@@ -72,6 +72,8 @@ const startConnecting = async () => {
         button.style.visibility = 'visible';
         document.removeEventListener('keydown', cancelOnEscape);
         updateButtonState();
+        if (window.showOfflineLibraryButton)
+            await window.showOfflineLibraryButton();
     }
 };
 
@@ -142,6 +144,28 @@ document.addEventListener('keydown', (e) => {
 
     await window.apiPromise;
 
+    const offlineButton = document.getElementById('offline-library-button');
+    if (offlineButton) {
+        offlineButton.textContent = 'View Offline Downloads';
+        offlineButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            window.location.href = 'qrc:///web-client/extension/offline-library.html';
+        });
+    }
+
+    async function showOfflineLibraryButton() {
+        if (!offlineButton || !window.api?.download)
+            return;
+
+        const hasDownloads = window.abyssfinDownload?.hasDownloads(window.api.download);
+        offlineButton.style.display = hasDownloads ? 'block' : 'none';
+
+        if (!navigator.onLine && hasDownloads)
+            window.location.href = 'qrc:///web-client/extension/offline-library.html';
+    }
+
+    window.showOfflineLibraryButton = showOfflineLibraryButton;
+
     const savedServer = window.jmpInfo.settings.main.userWebClient;
     console.log('Auto-connect: savedServer =', savedServer);
 
@@ -170,20 +194,21 @@ document.addEventListener('keydown', (e) => {
         // C++ handles retries, just wait for result
         const connected = await tryConnect(savedServer);
 
-        if (!connected) {
-            // User cancelled or error - show UI
-            isConnecting = false;
-            title.textContent = document.getElementById('title').getAttribute('data-original-text');
-            title.style.visibility = 'visible';
-            address.classList.remove('connecting');
-            address.style.visibility = 'visible';
-            address.disabled = false;
-            spinner.style.display = 'none';
-            button.style.visibility = 'visible';
-            document.removeEventListener('keydown', cancelOnEscape);
-            address.focus();
-            updateButtonState();
-        }
+    if (!connected) {
+        // User cancelled or error - show UI
+        isConnecting = false;
+        title.textContent = document.getElementById('title').getAttribute('data-original-text');
+        title.style.visibility = 'visible';
+        address.classList.remove('connecting');
+        address.style.visibility = 'visible';
+        address.disabled = false;
+        spinner.style.display = 'none';
+        button.style.visibility = 'visible';
+        document.removeEventListener('keydown', cancelOnEscape);
+        address.focus();
+        updateButtonState();
+        await showOfflineLibraryButton();
+    }
     } else {
         const title = document.getElementById('title');
         const address = document.getElementById('address');
@@ -194,5 +219,6 @@ document.addEventListener('keydown', (e) => {
         button.style.visibility = 'visible';
         address.focus();
         updateButtonState();
+        await showOfflineLibraryButton();
     }
 })();

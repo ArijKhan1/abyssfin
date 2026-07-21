@@ -10,6 +10,7 @@ set(CMAKE_AUTOMOC ON)
 get_target_property(Qt6Core_RCC_EXECUTABLE Qt6::rcc IMPORTED_LOCATION)
 add_definitions(-DPREFIX="${CMAKE_INSTALL_PREFIX}")
 
+add_subdirectory(download)
 add_subdirectory(shared)
 add_subdirectory(core)
 add_subdirectory(display)
@@ -156,10 +157,23 @@ endif()
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/ui/webview.qml
   PROPERTIES QT_RESOURCE_ALIAS webview.qml
 )
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/ui/TrayMenu.qml
+  PROPERTIES QT_RESOURCE_ALIAS TrayMenu.qml
+)
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/ui/TrayMenuButton.qml
+  PROPERTIES QT_RESOURCE_ALIAS TrayMenuButton.qml
+)
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/ui/OfflineDownloadHub.qml
+  PROPERTIES QT_RESOURCE_ALIAS OfflineDownloadHub.qml
+)
 qt_add_qml_module(${MAIN_TARGET}
   URI Konvergo
   VERSION 1.0
-  QML_FILES ${CMAKE_CURRENT_SOURCE_DIR}/ui/webview.qml
+  QML_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/webview.qml
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/TrayMenu.qml
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/TrayMenuButton.qml
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/OfflineDownloadHub.qml
   NO_RESOURCE_TARGET_PATH
 )
 

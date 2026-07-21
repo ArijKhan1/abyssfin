@@ -50,6 +50,10 @@ void LocalJsonServer::serverClientConnected()
   {
     m_clientSockets << socket;
     connect(socket, &QLocalSocket::readyRead, this, &LocalJsonServer::clientReadyRead);
+    connect(socket, &QLocalSocket::disconnected, this, [this, socket]() {
+      m_clientSockets.removeAll(socket);
+      socket->deleteLater();
+    });
     emit clientConnected(socket);
   }
 }
@@ -81,7 +85,7 @@ void LocalJsonServer::clientReadyRead()
 
   QVariantList messages = readFromSocket(socket);
   for(const QVariant& msg : messages)
-    emit messageReceived(msg.toMap());
+    emit messageReceived(socket, msg.toMap());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

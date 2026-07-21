@@ -12,6 +12,7 @@
 #include "system/SystemComponent.h"
 #include "settings/SettingsComponent.h"
 #include "taskbar/TaskbarComponent.h"
+#include "download/DownloadComponent.h"
 #include "ui/WindowManager.h"
 #ifdef LINUX_DBUS
 #include "mpris/MprisComponent.h"
@@ -60,6 +61,7 @@ void ComponentManager::initialize()
   registerComponent(&SystemComponent::Get());
   registerComponent(&DisplayComponent::Get());
   registerComponent(&PlayerComponent::Get());
+  registerComponent(&DownloadComponent::Get());
   registerComponent(&PowerComponent::Get());
   registerComponent(&TaskbarComponent::Get());
   registerComponent(&WindowManager::Get());

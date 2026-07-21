@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QDebug>
+#include <QUrl>
 #include "display/DisplayComponent.h"
 #include "settings/SettingsComponent.h"
 #include "system/SystemComponent.h"
@@ -17,6 +18,10 @@
 #include "AlbumArtProvider.h"
 #include "input/InputComponent.h"
 #include <MpvController>
+
+#include <QQuickWindow>
+#include <QQuickItem>
+#include <QTimer>
 
 #include <math.h>
 #include <string.h>
@@ -109,8 +114,9 @@ void PlayerComponent::initializeMpv()
 
   mpv_set_wakeup_callback(m_mpv->mpv(), wakeup_cb, this);
 
-  // Keep window open even when idle (no file loaded)
-  m_mpv->setProperty("force-window", true);
+  // Keep the render pipeline idle until media is loaded. force-window before the
+  // libmpv render context exists produces "No render context set" VO errors.
+  m_mpv->setProperty("force-window", false);
 
   // Disable native OSD if mpv_command_string() is used.
   m_mpv->setProperty("osd-level", "0");
@@ -244,18 +250,48 @@ void PlayerComponent::setVideoRectangle(int x, int y, int w, int h)
   }
 }
 
+namespace
+{
+MpvVideoItem* findMpvVideoItem(QQuickWindow* window)
+{
+  if (!window)
+    return nullptr;
+
+  if (MpvVideoItem* video = window->findChild<MpvVideoItem*>("video"))
+    return video;
+
+  if (QQuickItem* content = window->contentItem())
+    return content->findChild<MpvVideoItem*>("video");
+
+  return nullptr;
+}
+
+void bindMpvVideoItem(PlayerComponent* player, QQuickWindow* window, int attempt)
+{
+  if (MpvVideoItem* video = findMpvVideoItem(window))
+  {
+    qDebug() << "Found MpvVideoItem, calling setPlayerComponent";
+    video->setPlayerComponent(player);
+    return;
+  }
+
+  if (attempt >= 100)
+  {
+    qCritical() << "Failed to find MpvVideoItem with objectName 'video' after retries";
+    return;
+  }
+
+  QTimer::singleShot(attempt == 0 ? 0 : 10, window, [player, window, attempt]() {
+    bindMpvVideoItem(player, window, attempt + 1);
+  });
+}
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::setQtQuickWindow(QQuickWindow* window)
 {
   qDebug() << "PlayerComponent::setQtQuickWindow called";
-  MpvVideoItem* video = window->findChild<MpvVideoItem*>("video");
-  if (!video) {
-    qCritical() << "Failed to find MpvVideoItem with objectName 'video'";
-    throw FatalException(tr("Failed to load video element."));
-  }
-
-  qDebug() << "Found MpvVideoItem, calling setPlayerComponent";
-  video->setPlayerComponent(this);
+  bindMpvVideoItem(this, window, 0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -298,6 +334,9 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
     qWarning() << "PlayerComponent::queueMedia: mpv not initialized yet";
     return;
   }
+
+  if (metadata["type"] != "music")
+    m_mpv->setProperty("force-window", true);
 
   InputComponent::Get().cancelAutoRepeat();
 
@@ -463,6 +502,7 @@ void PlayerComponent::updatePlaybackState()
     case State::playing:
       qInfo() << "Entering state: playing";
       emit playing();
+      emit mediaTracksChanged();
       break;
     case State::buffering:
       qInfo() << "Entering state: buffering";
@@ -575,6 +615,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       {
         if (prop->format == MPV_FORMAT_DOUBLE)
           emit updateDuration(*static_cast<double*>(prop->data) * 1000.0);
+        emit mediaTracksChanged();
       }
       else if (strcmp(prop->name, "audio-device-list") == 0)
       {
@@ -780,6 +821,21 @@ void PlayerComponent::notifyQueueChange(bool canNext, bool canPrevious)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::notifyPlaybackStop(bool isNavigating)
 {
+  if (!m_nowPlayingTitle.isEmpty())
+  {
+    m_nowPlayingTitle.clear();
+    emit nowPlayingTitleChanged(QString());
+  }
+  if (!isNavigating && !m_playbackState.isEmpty())
+  {
+    m_playbackState.clear();
+    emit playbackStateChanged(QString());
+  }
+  else if (isNavigating && m_playbackState == "Playing")
+  {
+    m_playbackState.clear();
+    emit playbackStateChanged(QString());
+  }
   emit playbackStopped(isNavigating);
 }
 
@@ -792,7 +848,11 @@ void PlayerComponent::notifyDurationChange(qint64 durationMs)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::notifyPlaybackState(const QString& state)
 {
-  emit playbackStateChanged(state);
+  if (state != m_playbackState)
+  {
+    m_playbackState = state;
+    emit playbackStateChanged(state);
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -810,6 +870,30 @@ void PlayerComponent::notifySeek(qint64 positionMs)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::notifyMetadata(const QVariantMap& metadata)
 {
+  QString title = metadata.value("Name").toString();
+  const QString seriesName = metadata.value("SeriesName").toString();
+  if (!seriesName.isEmpty())
+  {
+    const int season = metadata.value("ParentIndexNumber").toInt();
+    const int episode = metadata.value("IndexNumber").toInt();
+    title = QString("%1 - S%2E%3").arg(seriesName).arg(season, 2, 10, QChar('0')).arg(episode, 2, 10, QChar('0'));
+    const QString episodeName = metadata.value("Name").toString();
+    if (!episodeName.isEmpty() && episodeName != seriesName)
+      title += " - " + episodeName;
+  }
+  else if (metadata.value("Type").toString() == "Audio")
+  {
+    const QString artist = metadata.value("AlbumArtist").toString();
+    if (!artist.isEmpty())
+      title = artist + " - " + title;
+  }
+
+  if (title != m_nowPlayingTitle)
+  {
+    m_nowPlayingTitle = title;
+    emit nowPlayingTitleChanged(title);
+  }
+
   emit metadataChanged(metadata);
 }
 
@@ -1080,6 +1164,11 @@ void PlayerComponent::setAudioStream(const QVariant &audioStream)
 /////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::setAudioDelay(qint64 milliseconds)
 {
+  if (!m_mpv) {
+    qWarning() << "PlayerComponent::setAudioDelay: mpv not initialized yet";
+    return;
+  }
+
   m_playbackAudioDelay = milliseconds;
 
   double displayFps = DisplayComponent::Get().currentRefreshRate();
@@ -1117,6 +1206,163 @@ void PlayerComponent::setPlaybackRate(int rate)
   emit playbackRateChanged(speed);
 }
 
+namespace
+{
+QString formatTrackTitle(const QVariantMap& track)
+{
+  QString title = track.value("title").toString().trimmed();
+  if (!title.isEmpty())
+    return title;
+
+  const QString lang = track.value("lang").toString().trimmed();
+  if (!lang.isEmpty())
+    return lang;
+
+  const QString codec = track.value("codec").toString().trimmed();
+  if (!codec.isEmpty())
+    return codec;
+
+  return QString("Track %1").arg(track.value("id").toInt());
+}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+QVariantList PlayerComponent::listAudioTracks() const
+{
+  QVariantList out;
+  if (!m_mpv)
+    return out;
+
+  const int currentId = currentAudioTrackId();
+  const QVariant tracks = m_mpv->getProperty("track-list");
+  for (const QVariant& value : tracks.toList())
+  {
+    const QVariantMap track = value.toMap();
+    if (track.value("type").toString() != "audio")
+      continue;
+
+    const int id = track.value("id").toInt();
+    QVariantMap row;
+    row.insert("id", id);
+    row.insert("title", formatTrackTitle(track));
+    row.insert("language", track.value("lang"));
+    row.insert("selected", id == currentId || track.value("selected").toBool());
+    out.append(row);
+  }
+
+  return out;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+QVariantList PlayerComponent::listSubtitleTracks() const
+{
+  QVariantList out;
+  if (!m_mpv)
+    return out;
+
+  const int currentId = currentSubtitleTrackId();
+
+  {
+    QVariantMap off;
+    off.insert("id", 0);
+    off.insert("title", "Off");
+    off.insert("selected", currentId == 0);
+    off.insert("external", false);
+    out.append(off);
+  }
+
+  for (const QVariant& value : m_mpv->getProperty("track-list").toList())
+  {
+    const QVariantMap track = value.toMap();
+    if (track.value("type").toString() != "sub")
+      continue;
+
+    const int id = track.value("id").toInt();
+    const bool external = track.value("external").toBool();
+    QVariantMap row;
+    row.insert("id", id);
+    row.insert("title", formatTrackTitle(track));
+    row.insert("language", track.value("lang"));
+    row.insert("external", external);
+    if (external)
+      row.insert("path", track.value("external-filename"));
+    row.insert("selected", id == currentId || track.value("selected").toBool());
+    out.append(row);
+  }
+
+  return out;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+int PlayerComponent::currentAudioTrackId() const
+{
+  if (!m_mpv)
+    return 0;
+
+  bool ok = false;
+  const int id = m_mpv->getProperty("aid").toInt(&ok);
+  return ok ? id : 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+int PlayerComponent::currentSubtitleTrackId() const
+{
+  if (!m_mpv)
+    return 0;
+
+  const QVariant sid = m_mpv->getProperty("sid");
+  if (!sid.isValid() || sid.toString() == "no")
+    return 0;
+
+  bool ok = false;
+  const int id = sid.toInt(&ok);
+  return ok ? id : 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::selectAudioTrack(int mpvTrackId)
+{
+  if (mpvTrackId <= 0)
+    return;
+
+  setAudioStream(mpvTrackId);
+  emit mediaTracksChanged();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::selectSubtitleTrack(int mpvTrackId)
+{
+  if (mpvTrackId <= 0)
+    setSubtitleStream(-1);
+  else
+    setSubtitleStream(mpvTrackId);
+  emit mediaTracksChanged();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::addExternalSubtitle(const QString& path)
+{
+  if (!m_mpv || path.isEmpty())
+    return;
+
+  const QString url = QUrl::fromLocalFile(path).toString(QUrl::FullyEncoded);
+  m_mpv->command(QStringList() << "sub-add" << url);
+  emit mediaTracksChanged();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::selectExternalSubtitle(const QString& path)
+{
+  if (path.isEmpty())
+  {
+    selectSubtitleTrack(0);
+    return;
+  }
+
+  setSubtitleStream(QString("#,") + QUrl::fromLocalFile(path).toString(QUrl::FullyEncoded));
+  emit mediaTracksChanged();
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////
 qint64 PlayerComponent::getPosition()
 {
@@ -1126,7 +1372,7 @@ qint64 PlayerComponent::getPosition()
   }
   QVariant time = m_mpv->getProperty( "playback-time");
   if (time.canConvert<double>())
-    return time.toDouble();
+    return static_cast<qint64>(qMax(time.toDouble() * 1000.0, 0.0));
   return 0;
 }
 
@@ -1139,7 +1385,7 @@ qint64 PlayerComponent::getDuration()
   }
   QVariant time = m_mpv->getProperty( "duration");
   if (time.canConvert<double>())
-    return time.toDouble();
+    return static_cast<qint64>(qMax(time.toDouble() * 1000.0, 0.0));
   return 0;
 }
 

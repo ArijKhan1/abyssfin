@@ -24,7 +24,7 @@ public:
 
 Q_SIGNALS:
   void clientConnected(QLocalSocket* socket);
-  void messageReceived(const QVariant& message);
+  void messageReceived(QLocalSocket* socket, const QVariant& message);
 
 private Q_SLOTS:
   void serverClientConnected();

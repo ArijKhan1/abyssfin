@@ -24,7 +24,7 @@ public:
 
 private Q_SLOTS:
   void clientConnected(QLocalSocket* socket);
-  void messageReceived(const QVariant& message);
+  void messageReceived(QLocalSocket* socket, const QVariant& message);
 
 private:
   LocalJsonServer* m_server;

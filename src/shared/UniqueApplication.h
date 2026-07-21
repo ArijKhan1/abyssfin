@@ -26,7 +26,7 @@ public:
   {
     m_server = new LocalJsonServer(m_socketName, this);
 
-    connect(m_server, &LocalJsonServer::messageReceived, [=](const QVariant& message)
+    connect(m_server, &LocalJsonServer::messageReceived, [=](QLocalSocket*, const QVariant& message)
     {
       QVariantMap map = message.toMap();
       if (map.contains("command") && map.value("command").toString() == "appStart")

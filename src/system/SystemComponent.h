@@ -16,6 +16,7 @@
 // Network timeouts (milliseconds)
 constexpr int NETWORK_REQUEST_TIMEOUT_MS = 30000;
 constexpr int CONNECTIVITY_RETRY_INTERVAL_MS = 5000;
+constexpr int CONNECTIVITY_MAX_RETRIES = 12;
 
 class SystemComponent : public ComponentBase
 {
@@ -58,6 +59,8 @@ public:
   Q_INVOKABLE void runUserScript(QString script);
 
   Q_INVOKABLE QString getNativeShellScript();
+
+  Q_INVOKABLE QVariantMap globalCursorPosition() const;
 
   Q_INVOKABLE void fetchPageForCSPWorkaround(QString url);
   Q_SIGNAL void pageContentReady(QString html, QString finalUrl, bool hadCSP);
@@ -140,6 +143,7 @@ private:
   QNetworkReply* m_resolveUrlReply;
   QTimer* m_connectivityRetryTimer;
   QString m_pendingConnectivityUrl;
+  int m_connectivityRetryCount = 0;
 
 };
 

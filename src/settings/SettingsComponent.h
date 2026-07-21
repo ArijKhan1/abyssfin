@@ -32,6 +32,7 @@ class SettingsComponent : public ComponentBase
 {
   Q_OBJECT
   Q_PROPERTY(bool windowsTrayIcon READ enableWindowsTrayIcon NOTIFY windowsTrayIconChanged)
+  Q_PROPERTY(bool trayIcon READ enableTrayIcon NOTIFY trayIconChanged)
   DEFINE_SINGLETON(SettingsComponent);
 
 public:
@@ -69,6 +70,7 @@ public:
   Q_INVOKABLE QString detectCertBundlePath();
   Q_INVOKABLE bool allowBrowserZoom();
   bool enableWindowsTrayIcon();
+  bool enableTrayIcon();
 
   // host commands
   Q_SLOT Q_INVOKABLE void cycleSettingCommand(const QString& args);
@@ -91,6 +93,7 @@ public:
 
   // Windows system tray icon enabled/disabled.
   Q_SIGNAL void windowsTrayIconChanged();
+  Q_SIGNAL void trayIconChanged();
 
   // A hack to load a value from the config file at very early init time, before
   // the SettingsComponent is created.

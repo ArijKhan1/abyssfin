@@ -23,6 +23,9 @@ class AlbumArtProvider;
 class PlayerComponent : public ComponentBase
 {
   Q_OBJECT
+  Q_PROPERTY(QString nowPlayingTitle READ nowPlayingTitle NOTIFY nowPlayingTitleChanged)
+  Q_PROPERTY(QString playbackState READ playbackState NOTIFY playbackStateChanged)
+  Q_PROPERTY(bool mpvReady READ isMpvReady NOTIFY mpvReadyChanged)
   DEFINE_SINGLETON(PlayerComponent);
 
 public:
@@ -76,6 +79,11 @@ public:
   Q_INVOKABLE void notifyMetadata(const QVariantMap& metadata);
   Q_INVOKABLE void notifyVolumeChange(double volume);
 
+  bool isMpvReady() const { return m_mpv != nullptr; }
+
+  QString nowPlayingTitle() const { return m_nowPlayingTitle; }
+  QString playbackState() const { return m_playbackState; }
+
   // 0-100 volume 0=mute and 100=normal
   // Ignored if no audio output active (e.g. when no file is playing).
   Q_INVOKABLE virtual void setVolume(int volume);
@@ -122,6 +130,15 @@ public:
   Q_INVOKABLE qint64 getPosition();
   Q_INVOKABLE qint64 getDuration();
 
+  Q_INVOKABLE QVariantList listAudioTracks() const;
+  Q_INVOKABLE QVariantList listSubtitleTracks() const;
+  Q_INVOKABLE int currentAudioTrackId() const;
+  Q_INVOKABLE int currentSubtitleTrackId() const;
+  Q_INVOKABLE void selectAudioTrack(int mpvTrackId);
+  Q_INVOKABLE void selectSubtitleTrack(int mpvTrackId);
+  Q_INVOKABLE void selectExternalSubtitle(const QString& path);
+  Q_INVOKABLE void addExternalSubtitle(const QString& path);
+
   // Returns video aspect ratio (width/height), or 0 if unavailable
   double videoAspectRatio();
 
@@ -134,8 +151,10 @@ public:
   AlbumArtProvider* albumArtProvider() const { return m_albumArtProvider; }
 
   void setMpvController(MpvController* controller) {
-    if (!m_mpv)
+    if (!m_mpv) {
       m_mpv = controller;
+      emit mpvReadyChanged(true);
+    }
   }
   void initializeMpv();
 
@@ -219,9 +238,12 @@ Q_SIGNALS:
   void durationChanged(qint64 durationMs);
   void playbackStateChanged(const QString& state);
   void positionChanged(qint64 positionMs);
+  void mediaTracksChanged();
   void seekPerformed(qint64 positionMs);
   void metadataChanged(const QVariantMap& metadata);
+  void mpvReadyChanged(bool ready);
   void volumeChanged(double volume);
+  void nowPlayingTitleChanged(const QString& title);
 
   // Buffered ranges from demuxer-cache-state, as list of {start, end} in ticks
   void bufferedRangesUpdated(const QVariantList& ranges);
@@ -277,8 +299,8 @@ private:
 
   QVariantList m_webPlaylist;
   QString m_currentWebPlaylistItemId;
-  QTimer* m_playlistTimer;
-  QVariantList m_queuedItems;
+  QString m_nowPlayingTitle;
+  QString m_playbackState;
 
   AlbumArtProvider* m_albumArtProvider;
 };

@@ -25,6 +25,9 @@ SettingsComponent::SettingsComponent(QObject *parent) : ComponentBase(parent), m
   {
     if (section == SETTINGS_SECTION_MAIN && values.contains("enableWindowsTrayIcon"))
       emit windowsTrayIconChanged();
+    if (section == SETTINGS_SECTION_MAIN &&
+        (values.contains("enableTrayIcon") || values.contains("enableWindowsTrayIcon")))
+      emit trayIconChanged();
   });
 }
 
@@ -127,7 +130,6 @@ void SettingsComponent::setSettingCommand(const QString& args)
   QString jsonString = "{\"value\": " + settingValue + "}";
   QJsonParseError err;
   QVariant value = QJsonDocument::fromJson(jsonString.toUtf8(), &err).object()["value"].toVariant();
-  printf("val: '%s'\n", settingValue.toUtf8().data());
   if (!value.isValid())
   {
     qCritical() << "Invalid settings value:" << settingValue << "(if it's a string, make sure to quote it)";
@@ -805,6 +807,20 @@ bool SettingsComponent::allowBrowserZoom()
 bool SettingsComponent::enableWindowsTrayIcon()
 {
   return SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "enableWindowsTrayIcon").toBool();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+bool SettingsComponent::enableTrayIcon()
+{
+  const QVariant traySetting = SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "enableTrayIcon");
+  if (traySetting.isValid())
+    return traySetting.toBool();
+
+  const QVariant legacySetting = SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "enableWindowsTrayIcon");
+  if (legacySetting.isValid())
+    return legacySetting.toBool();
+
+  return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

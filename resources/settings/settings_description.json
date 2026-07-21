@@ -167,18 +167,59 @@
         "value": "enableWindowsTrayIcon",
         "display_name": "Enable Windows System Tray",
         "default": false,
-        "platforms": [ "windows" ]
+        "platforms": [ "windows" ],
+        "hidden": true
+      },
+      {
+        "value": "enableTrayIcon",
+        "display_name": "Enable Menu Bar / Tray Icon",
+        "help": "Shows Abyssfin in the menu bar (macOS) or system tray (Windows/Linux) with playback controls.",
+        "default": true
+      },
+      {
+        "value": "pipSnapToCorner",
+        "display_name": "Snap PiP to Corners",
+        "help": "Magnetically snaps PiP to a corner only when you release it near that corner. Drag anywhere else to place it freely. Double-click PiP to cycle corners.",
+        "default": true
+      },
+      {
+        "value": "enableAutomationApi",
+        "display_name": "Enable Automation API",
+        "help": "Allows local scripts and tools to control playback via the Abyssfin input socket.",
+        "default": false
+      },
+      {
+        "value": "maxConcurrentDownloads",
+        "display_name": "Max Concurrent Downloads",
+        "help": "Maximum number of offline downloads to run at the same time. Additional downloads wait in a queue.",
+        "default": 2,
+        "minimum": 1,
+        "maximum": 5
+      },
+      {
+        "value": "offlineDownloadMinFreeMb",
+        "display_name": "Offline Download Free Space Buffer (MB)",
+        "help": "Minimum free disk space to keep available when starting an offline download.",
+        "default": 512,
+        "minimum": 128,
+        "maximum": 8192
+      },
+      {
+        "value": "useBundledAbyssTheme",
+        "display_name": "Use Bundled Abyss Theme",
+        "help": "Load Abyss CSS from the app bundle instead of the online CDN.",
+        "default": true
       },
       {
         "value": "enableMPV",
         "display_name": "Enable MPV Player",
         "help": "Enables MPV player for video and audio playback. When disabled, Jellyfin will fall back to the browser's built-in HTML5 player. This setting requires an application restart to take effect.\n\nNote: Disabling MPV will lose advanced features like audio passthrough, hardware decoding options, and codec-specific settings.",
-        "default": true
+        "default": false
       },
       {
         "value": "enableAbyssSpotlight",
         "display_name": "Enable Abyss Spotlight",
-        "help": "Injects the Abyss Spotlight home banner if it is missing from the server web client. Requires the Abyss server setup to have installed spotlight files in jellyfin-web/ui/.",
+        "help": "Injects the Abyss Spotlight home banner. Uses the server iframe when available, otherwise builds a local carousel from your Jellyfin library.",
         "default": true
       },
       {
@@ -189,8 +230,9 @@
       },
       {
         "value": "abyssThemeUrl",
-        "default": "",
-        "hidden": true
+        "display_name": "Custom Abyss Theme URL",
+        "help": "Optional override URL for Abyss CSS. Leave empty to use the bundled theme or CDN fallback.",
+        "default": ""
       },
       {
         "value": "allowBrowserZoom",
@@ -493,7 +535,7 @@
       {
         "value": "ass_style_override",
         "display_name": "ASS Style Override",
-        "help": "Control whether user style overrides should be applied. Note that all of these overrides try to be somewhat smart about figuring out whether or not a subtitle is considered a \"sign\".\n\nNo:	Render subtitles as specified by the subtitle scripts, without overrides.\nYes:	Apply all the --sub-ass-* style override options. Changing the default for any of these options can lead to incorrect subtitle rendering (default).\nForce:	Like yes, but also force all --sub-* options. Can break rendering easily.\nScale:	Like yes, but also apply --sub-scale.\nStrip:	Radically strip all ASS tags and styles from the subtitle. This is equivalent to the old --no-ass / --no-sub-ass options.\n\nThis also controls some bitmap subtitle overrides, as well as HTML tags in formats like SRT, despite the name of the option.",
+        "help": "Control whether user style overrides should be applied. Note that all of these overrides try to be somewhat smart about figuring out whether or not a subtitle is considered a \"sign\".\n\nNo: Render subtitles as specified by the subtitle scripts, without overrides.\nYes: Apply all the --sub-ass-* style override options. Changing the default for any of these options can lead to incorrect subtitle rendering (default).\nForce: Like yes, but also force all --sub-* options. Can break rendering easily.\nScale: Like yes, but also apply --sub-scale.\nStrip: Radically strip all ASS tags and styles from the subtitle. This is equivalent to the old --no-ass / --no-sub-ass options.\n\nThis also controls some bitmap subtitle overrides, as well as HTML tags in formats like SRT, despite the name of the option.",
         "default": "",
         "possible_values": [
           [ "", "Default" ],

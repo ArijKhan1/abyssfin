@@ -13,6 +13,8 @@ const remap = {
     "enter": "select",
 }
 
+let globalListenersAttached = false;
+
 class inputPlugin {
     constructor({ inputManager, playbackManager }) {
         this.name = 'Input Plugin';
@@ -46,6 +48,17 @@ class inputPlugin {
                         } else if (currentPlayer) {
                             playbackManager.previousTrack(currentPlayer);
                         }
+                    } else if (action === 'next') {
+                        const currentPlayer = playbackManager._currentPlayer;
+                        if (currentPlayer) {
+                            playbackManager.nextTrack(currentPlayer);
+                        }
+                    } else if (action === 'play') {
+                        inputManager.handleCommand('play', {});
+                    } else if (action === 'pause') {
+                        inputManager.handleCommand('pause', {});
+                    } else if (action === 'skip_intro') {
+                        window.abyssfinPlayback?.skipIntro(playbackManager);
                     } else {
                         if (remap.hasOwnProperty(action)) {
                             action = remap[action];
@@ -83,7 +96,6 @@ class inputPlugin {
                 }
             };
 
-            let globalListenersAttached = false;
             let lastReportedPosition = 0;
 
             if (!globalListenersAttached) {
@@ -149,7 +161,8 @@ class inputPlugin {
                         api.player.notifyPosition(Math.floor(positionMs));
                         lastReportedPosition = positionMs;
 
-                        api.player.notifyRateChange(0.0);
+                        const isPaused = playbackManager.getPlayerState()?.PlayState === 'Paused';
+                        api.player.notifyRateChange(isPaused ? 0.0 : 1.0);
                     });
                 }
 
@@ -264,6 +277,11 @@ class inputPlugin {
                     if (this.durationCheckInterval) {
                         clearInterval(this.durationCheckInterval);
                         this.durationCheckInterval = null;
+                    }
+
+                    if (this.positionUpdateInterval) {
+                        clearInterval(this.positionUpdateInterval);
+                        this.positionUpdateInterval = null;
                     }
 
                     const currentPos = playbackManager.currentTime();

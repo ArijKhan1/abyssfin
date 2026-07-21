@@ -22,26 +22,36 @@ window.jmpCheckServerConnectivity = (() => {
         activeController = controller;
 
         return new Promise((resolve, reject) => {
-            // Handle abort
-            controller.signal.addEventListener('abort', () => {
+            let settled = false;
+            const finish = (fn, value) => {
+                if (settled)
+                    return;
+                settled = true;
+                window.clearTimeout(timeoutId);
                 if (handler) {
                     window.api.system.serverConnectivityResult.disconnect(handler);
+                    handler = null;
                 }
-                reject(new Error('Connection cancelled'));
+                if (activeController === controller)
+                    activeController = null;
+                fn(value);
+            };
+
+            const timeoutId = window.setTimeout(() => {
+                finish(reject, new Error('Connection timed out'));
+            }, 90000);
+
+            // Handle abort
+            controller.signal.addEventListener('abort', () => {
+                finish(reject, new Error('Connection cancelled'));
             });
 
             let handler = (resultUrl, success, resolvedUrl) => {
                 if (resultUrl === url && !controller.signal.aborted) {
-                    window.api.system.serverConnectivityResult.disconnect(handler);
-                    handler = null;
-                    if (activeController === controller) {
-                        activeController = null;
-                    }
-                    if (success) {
-                        resolve(resolvedUrl);
-                    } else {
-                        reject(new Error('Connection failed'));
-                    }
+                    if (success)
+                        finish(resolve, resolvedUrl);
+                    else
+                        finish(reject, new Error('Connection failed'));
                 }
             };
 

@@ -1,5 +1,5 @@
 (function() {
-    const ABYSS_CSS_URL = 'https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/abyss.css';
+    const CDN_ABYSS_CSS_URL = 'https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/abyss.css';
     const THEME_LINK_ID = 'abyssfin-theme';
 
     function shouldInjectTheme() {
@@ -8,7 +8,10 @@
         }
 
         const path = window.location.pathname || '';
-        return !path.includes('find-webclient.html');
+        const href = window.location.href || '';
+        return !path.includes('find-webclient.html')
+            && !path.includes('offline-library.html')
+            && !href.includes('offline-library.html');
     }
 
     function ensureDarkBaseTheme() {
@@ -23,6 +26,31 @@
         }
     }
 
+    function injectBundledTheme(cssText) {
+        if (!cssText || document.getElementById(THEME_LINK_ID)) {
+            return Boolean(document.getElementById(THEME_LINK_ID));
+        }
+
+        const style = document.createElement('style');
+        style.id = THEME_LINK_ID;
+        style.textContent = cssText;
+        document.head.appendChild(style);
+        return true;
+    }
+
+    function injectLinkedTheme(url) {
+        if (!url || document.getElementById(THEME_LINK_ID)) {
+            return Boolean(document.getElementById(THEME_LINK_ID));
+        }
+
+        const link = document.createElement('link');
+        link.id = THEME_LINK_ID;
+        link.rel = 'stylesheet';
+        link.href = url;
+        document.head.appendChild(link);
+        return true;
+    }
+
     function injectAbyssTheme() {
         if (!shouldInjectTheme()) {
             return;
@@ -35,11 +63,18 @@
         ensureDarkBaseTheme();
 
         const customUrl = window.jmpInfo?.settings?.main?.abyssThemeUrl;
-        const link = document.createElement('link');
-        link.id = THEME_LINK_ID;
-        link.rel = 'stylesheet';
-        link.href = customUrl && customUrl.trim() ? customUrl.trim() : ABYSS_CSS_URL;
-        document.head.appendChild(link);
+        if (customUrl && customUrl.trim()) {
+            injectLinkedTheme(customUrl.trim());
+            return;
+        }
+
+        const useBundled = window.jmpInfo?.settings?.main?.useBundledAbyssTheme !== false;
+        if (useBundled && window.jmpInfo?.bundledAbyssCss) {
+            injectBundledTheme(window.jmpInfo.bundledAbyssCss);
+            return;
+        }
+
+        injectLinkedTheme(CDN_ABYSS_CSS_URL);
     }
 
     if (document.readyState === 'loading') {

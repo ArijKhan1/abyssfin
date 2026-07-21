@@ -13,6 +13,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QDebug>
+#include <climits>
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 WindowManager& WindowManager::Get()
@@ -401,7 +402,11 @@ bool WindowManager::eventFilter(QObject* watched, QEvent* event)
         m_pip.dragging = false;
         m_pip.dragStartCursorPos = QPoint();
         if (wasDragging)
+        {
+          if (SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "pipSnapToCorner").toBool())
+            QTimer::singleShot(0, this, &WindowManager::snapPipIfNearCorner);
           return true;
+        }
 
         // Not a drag — forward the original press + this release
         if (m_pip.pressEvent)
@@ -413,6 +418,16 @@ bool WindowManager::eventFilter(QObject* watched, QEvent* event)
           m_pip.pressEvent.reset();
           return true;
         }
+      }
+    }
+
+    else if (m_pip.active && !m_pip.forwardingClick && event->type() == QEvent::MouseButtonDblClick)
+    {
+      auto* me = static_cast<QMouseEvent*>(event);
+      if (me->button() == Qt::LeftButton)
+      {
+        cyclePipCorner();
+        return true;
       }
     }
 
@@ -1007,7 +1022,7 @@ QScreen* WindowManager::findCurrentScreen()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 QScreen* WindowManager::loadLastScreen()
 {
-  QString screenName = SettingsComponent::Get().value(SETTINGS_SECTION_STATE, "lastusedscreen").toString();
+  QString screenName = SettingsComponent::Get().value(SETTINGS_SECTION_STATE, screenNameKey()).toString();
 
   if (screenName.isEmpty())
     return QGuiApplication::primaryScreen();
@@ -1127,14 +1142,117 @@ void WindowManager::togglePiP()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::snapPipIfNearCorner()
+{
+  if (!m_pip.active || !m_window)
+    return;
+
+  QScreen* screen = findCurrentScreen();
+  if (!screen)
+    return;
+
+  const int margin = 20;
+  const int snapRadius = 110;
+  QRect avail = screen->availableGeometry();
+  QRect geo = m_window->geometry();
+
+  struct CornerTarget
+  {
+    QPoint pos;
+    int index;
+  };
+
+  const QList<CornerTarget> corners = {
+    {QPoint(avail.left() + margin, avail.top() + margin), 0},
+    {QPoint(avail.right() - geo.width() - margin, avail.top() + margin), 1},
+    {QPoint(avail.left() + margin, avail.bottom() - geo.height() - margin), 2},
+    {QPoint(avail.right() - geo.width() - margin, avail.bottom() - geo.height() - margin), 3},
+  };
+
+  QPoint center = geo.center();
+  int bestDist = INT_MAX;
+  QPoint bestPos = geo.topLeft();
+  int bestIndex = -1;
+
+  for (const CornerTarget& corner : corners)
+  {
+    QPoint cornerCenter(corner.pos.x() + geo.width() / 2, corner.pos.y() + geo.height() / 2);
+    int dist = (center - cornerCenter).manhattanLength();
+    if (dist < bestDist)
+    {
+      bestDist = dist;
+      bestPos = corner.pos;
+      bestIndex = corner.index;
+    }
+  }
+
+  if (bestIndex < 0 || bestDist > snapRadius)
+  {
+    m_pip.cornerIndex = -1;
+    saveWindowPosition();
+    m_geometrySaveTimer->start();
+    return;
+  }
+
+  m_pip.cornerIndex = bestIndex;
+  m_window->setPosition(bestPos);
+  saveWindowPosition();
+  m_geometrySaveTimer->start();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void WindowManager::cyclePipCorner()
+{
+  if (!m_pip.active || !m_window)
+    return;
+
+  QScreen* screen = findCurrentScreen();
+  if (!screen)
+    return;
+
+  if (m_pip.cornerIndex < 0)
+    snapPipIfNearCorner();
+
+  const int margin = 20;
+  QRect avail = screen->availableGeometry();
+  QRect geo = m_window->geometry();
+
+  if (m_pip.cornerIndex < 0)
+    m_pip.cornerIndex = 0;
+  else
+    m_pip.cornerIndex = (m_pip.cornerIndex + 1) % 4;
+
+  QPoint target;
+  switch (m_pip.cornerIndex)
+  {
+    case 0:
+      target = QPoint(avail.left() + margin, avail.top() + margin);
+      break;
+    case 1:
+      target = QPoint(avail.right() - geo.width() - margin, avail.top() + margin);
+      break;
+    case 2:
+      target = QPoint(avail.left() + margin, avail.bottom() - geo.height() - margin);
+      break;
+    default:
+      target = QPoint(avail.right() - geo.width() - margin, avail.bottom() - geo.height() - margin);
+      break;
+  }
+
+  m_window->setPosition(target);
+  saveWindowPosition();
+  m_geometrySaveTimer->start();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 void WindowManager::enterPiP()
 {
   if (SettingsComponent::Get().value(SETTINGS_SECTION_MAIN, "forceAlwaysFS").toBool() || isWayland())
     return;
 
   m_pip.aspectRatio = PlayerComponent::Get().videoAspectRatio();
-  if (m_pip.aspectRatio <= 0) // No video in current view
-    return;
+  if (m_pip.aspectRatio <= 0)
+    m_pip.aspectRatio = 16.0 / 9.0;
 
   m_pip.prePipGeometry = m_windowedGeometry;
   m_pip.prePipVisibility = m_window->visibility();

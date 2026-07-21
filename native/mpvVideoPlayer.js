@@ -303,8 +303,22 @@
          * @private
          */
         setCurrentSrc(elem, options) {
-            return new Promise((resolve) => {
-                const val = options.url;
+            return new Promise(async (resolve) => {
+                let val = options.url;
+                const itemId = options.item?.Id;
+                if (itemId && window.api?.download?.getLocalPath) {
+                    const dl = window.abyssfinDownload;
+                    const rawPath = dl?.getLocalPath
+                        ? dl.getLocalPath(window.api.download, itemId)
+                        : window.api.download.getLocalPath(itemId);
+                    const localPath = window.abyssfinPaths?.normalizeLocalPath
+                        ? window.abyssfinPaths.normalizeLocalPath(rawPath)
+                        : (rawPath || '');
+                    if (localPath)
+                        val = window.abyssfinPlayback?.toFileUrl?.(localPath) || ('file://' + localPath.replace(/\\/g, '/'));
+                }
+
+                val = typeof val === 'string' ? val : String(val || '');
                 this._currentSrc = val;
                 console.debug(`playing url: ${val}`);
 
@@ -332,9 +346,21 @@
                     ? this.getRelativeIndexByType(streams, this._audioTrackIndexToSetOnPlaying, 'Audio')
                     : 1;
 
-                // Handle subtitle - check for external first
+                // Handle subtitle - check for external first, then local offline sidecars
                 let subtitleParam;
-                if (this._subtitleTrackIndexToSetOnPlaying >= 0) {
+                if (itemId && typeof val === 'string' && val.startsWith('file://') && window.api?.download) {
+                    const dl = window.abyssfinDownload;
+                    const localPlayback = dl?.getLocalPlayback
+                        ? dl.getLocalPlayback(window.api.download, itemId)
+                        : window.api.download.getLocalPlayback(itemId);
+                    const localSub = localPlayback?.defaultSubtitlePath;
+                    if (localSub)
+                        subtitleParam = '#,' + (window.abyssfinPlayback?.toFileUrl
+                            ? window.abyssfinPlayback.toFileUrl(localSub)
+                            : localSub);
+                    else
+                        subtitleParam = -1;
+                } else if (this._subtitleTrackIndexToSetOnPlaying >= 0) {
                     const subStream = this.getStreamByIndex(streams, this._subtitleTrackIndexToSetOnPlaying);
                     if (subStream && subStream.DeliveryMethod === 'External' && subStream.DeliveryUrl) {
                         subtitleParam = '#,' + subStream.DeliveryUrl;
@@ -550,18 +576,6 @@
                     player.error.connect(this.onError);
                     player.paused.connect(this.onPause);
                     player.bufferedRangesUpdated.connect(this.onBufferedRangesUpdated);
-
-                    // Log all other signals
-                    player.buffering.connect((percent) => {
-                        console.log(`[MPV Signal] buffering: ${percent}`);
-                    });
-                    player.canceled.connect(() => console.log('[MPV Signal] canceled'));
-                    player.stopped.connect(() => console.log('[MPV Signal] stopped'));
-                    player.stateChanged.connect((newState, oldState) => console.log(`[MPV Signal] stateChanged: ${oldState} -> ${newState}`));
-                    player.videoPlaybackActive.connect((active) => console.log(`[MPV Signal] videoPlaybackActive: ${active}`));
-                    player.windowVisible.connect((visible) => console.log(`[MPV Signal] windowVisible: ${visible}`));
-                    player.onVideoRecangleChanged.connect(() => console.log('[MPV Signal] onVideoRecangleChanged'));
-                    player.onMetaData.connect((meta) => console.log(`[MPV Signal] onMetaData: ${JSON.stringify(meta)}`));
                 }
 
                 if (options.fullscreen) {
@@ -570,7 +584,19 @@
                 }
                 return Promise.resolve();
             } else {
-                // we need to hide scrollbar when starting playback from page with animated background
+                this._videoDialog = dlg;
+                if (!this._hasConnection) {
+                    this._hasConnection = true;
+                    const player = window.api.player;
+                    player.playing.connect(this.onPlaying);
+                    player.positionUpdate.connect(this.onTimeUpdate);
+                    player.finished.connect(this.onEnded);
+                    player.updateDuration.connect(this.onDuration);
+                    player.error.connect(this.onError);
+                    player.paused.connect(this.onPause);
+                    player.bufferedRangesUpdated.connect(this.onBufferedRangesUpdated);
+                }
+
                 if (options.fullscreen) {
                     document.body.classList.add('hide-scroll');
                 }
@@ -583,12 +609,13 @@
      * @private
      */
     canPlayMediaType(mediaType) {
-        return (mediaType || '').toLowerCase() === 'video';
+        const type = (mediaType || '').toLowerCase();
+        return type === 'video' || type === 'movie' || type === 'episode';
     }
 
     canPlayItem(item, playOptions) {
-        // Delegate to canPlayMediaType - MPV can play any video the media type check passes
-        return this.canPlayMediaType(item.MediaType);
+        const mediaType = item?.MediaType || item?.Type;
+        return this.canPlayMediaType(mediaType);
     }
 
     /**

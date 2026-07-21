@@ -58,6 +58,7 @@ void Profile::ensureDirectories() const
     QDir().mkpath(dataDir());
     QDir().mkpath(logDir());
     QDir().mkpath(cacheDir());
+    QDir().mkpath(dataDir("offline-library/media"));
 }
 
 ProfileManager::ProfileManager(QObject* parent)

@@ -255,6 +255,7 @@ void InputComponent::sendAction(const QString action)
 {
   QStringList actionsToSend;
   actionsToSend.append(action);
+  qDebug() << "Emit input action (sendAction):" << actionsToSend;
   emit hostInput(actionsToSend);
 }
 

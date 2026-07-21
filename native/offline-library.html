@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Abyssfin Downloads</title>
+    <style>
+        html, body {
+            background: #0a0a0a !important;
+            color: rgba(245, 245, 247, 0.92) !important;
+        }
+    </style>
+    <link rel="stylesheet" href="offline-library.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <div class="logo-wrap">
+                <img class="logo" src="logo.png" alt="Abyssfin">
+            </div>
+            <div class="header-copy">
+                <h1>Offline Downloads</h1>
+                <p id="status-line">Loading your downloads…</p>
+            </div>
+            <div class="header-actions">
+                <button id="refresh-downloads" type="button">Refresh</button>
+                <button id="back-online" type="button">Back to Server</button>
+            </div>
+        </header>
+
+        <div id="loading-state" class="state-panel">
+            <h2>Loading downloads…</h2>
+            <p>Reading files saved on this device.</p>
+        </div>
+
+        <section id="queue-section" hidden>
+            <div class="section-heading">
+                <h2>Download queue</h2>
+                <span id="queue-count" class="section-badge">0 active</span>
+            </div>
+            <div id="queue-list" class="card-list"></div>
+        </section>
+
+        <section id="library-section" hidden>
+            <div class="section-heading">
+                <h2>Ready to watch</h2>
+                <span id="library-count" class="section-badge section-badge-ready">0 saved</span>
+            </div>
+            <div id="download-list" class="card-list"></div>
+        </section>
+
+        <div id="empty-state" class="state-panel" hidden>
+            <h2>No downloads yet</h2>
+            <p>Connect to your Jellyfin server while online and use <strong>Download for offline</strong> on a movie or episode.</p>
+            <p id="library-path" class="library-path"></p>
+        </div>
+
+        <div id="error-state" class="state-panel state-panel-error" hidden>
+            <h2>Could not load downloads</h2>
+            <p id="error-message">The offline library API is unavailable.</p>
+        </div>
+    </div>
+    <script src="offline-library.js"></script>
+</body>
+</html>

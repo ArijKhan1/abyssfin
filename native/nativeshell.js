@@ -9,7 +9,6 @@ const features = [
     "exitmenu",
     "remotecontrol",
     "fullscreenchange",
-    "filedownload",
     "remotevideo",
     "displaymode",
     "screensaver",
@@ -50,7 +49,32 @@ window.NativeShell = {
     },
 
     downloadFile(downloadInfo) {
-        window.api.system.openExternalUrl(downloadInfo.url);
+        const url = downloadInfo?.url || '';
+        const itemMatch = url.match(/\/Items\/([^/?]+)\/Download/i);
+        if (itemMatch) {
+            void (async () => {
+                try {
+                    const api = await window.apiPromise;
+                    const token = window.ApiClient?.accessToken?.() || '';
+                    const item = downloadInfo.item || {
+                        Id: itemMatch[1],
+                        Name: downloadInfo.name || downloadInfo.fileName || 'Download',
+                        Type: 'Movie'
+                    };
+                    api.download.startDownload({
+                        item,
+                        mediaSource: item.MediaSources?.[0] || null,
+                        accessToken: token,
+                        serverUrl: window.ApiClient?.serverAddress?.() || window.jmpInfo?.settings?.main?.userWebClient || ''
+                    });
+                } catch (error) {
+                    console.error('[Abyssfin offline] NativeShell.downloadFile failed', error);
+                    window.api.system.openExternalUrl(url);
+                }
+            })();
+            return;
+        }
+        window.api.system.openExternalUrl(url);
     },
 
     openClientSettings() {
@@ -214,9 +238,11 @@ function getDeviceProfile() {
 }
 
 async function createApi() {
-    // Can't append script until document exists
     await new Promise(resolve => {
-        document.addEventListener('DOMContentLoaded', resolve);
+        if (document.readyState === 'loading')
+            document.addEventListener('DOMContentLoaded', resolve, { once: true });
+        else
+            resolve();
     });
 
     const channel = await new Promise((resolve) => {
@@ -300,15 +326,17 @@ window.initCompleted = new Promise(async (resolve) => {
     );
 
     // Sync cursor visibility with jellyfin-web's mouse idle state
-    const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            if (mutation.attributeName === 'class') {
-                const isIdle = document.body.classList.contains('mouseIdle');
-                window.api.window.setCursorVisibility(!isIdle);
+    if (document.body) {
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.attributeName === 'class') {
+                    const isIdle = document.body.classList.contains('mouseIdle');
+                    window.api.window.setCursorVisibility(!isIdle);
+                }
             }
-        }
-    });
-    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        });
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    }
 
     resolve();
 });
