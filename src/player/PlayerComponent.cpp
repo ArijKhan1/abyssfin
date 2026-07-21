@@ -378,6 +378,17 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
   if (userAgent.size())
     extraArgs.insert("user-agent", userAgent);
 
+  QStringList headerLines;
+  const QVariantMap headers = metadata.value("headers").toMap();
+  for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
+  {
+    const QString value = it.value().toString();
+    if (!value.isEmpty())
+      headerLines << QString("%1: %2").arg(it.key(), value);
+  }
+  if (!headerLines.isEmpty())
+    extraArgs.insert("http-header-fields", headerLines.join("\r\n"));
+
   // Make sure the list of requested codecs is reset.
   extraArgs.insert("ad", "");
   extraArgs.insert("vd", "");

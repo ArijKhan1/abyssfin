@@ -306,7 +306,10 @@
             return new Promise(async (resolve) => {
                 let val = options.url;
                 const itemId = options.item?.Id;
-                if (itemId && window.api?.download?.getLocalPath) {
+
+                // Offline playback sets a file:// URL before play(); don't override stream URLs.
+                const isLocalPlayback = typeof val === 'string' && val.startsWith('file://');
+                if (!isLocalPlayback && itemId && options.preferLocalDownload && window.api?.download?.getLocalPath) {
                     const dl = window.abyssfinDownload;
                     const rawPath = dl?.getLocalPath
                         ? dl.getLocalPath(window.api.download, itemId)
@@ -314,24 +317,38 @@
                     const localPath = window.abyssfinPaths?.normalizeLocalPath
                         ? window.abyssfinPaths.normalizeLocalPath(rawPath)
                         : (rawPath || '');
-                    if (localPath)
-                        val = window.abyssfinPlayback?.toFileUrl?.(localPath) || ('file://' + localPath.replace(/\\/g, '/'));
+                    if (localPath) {
+                        val = window.abyssfinPlayback?.toFileUrl?.(localPath)
+                            || ('file://' + localPath.replace(/\\/g, '/'));
+                    }
                 }
 
                 val = typeof val === 'string' ? val : String(val || '');
+                if (val.startsWith('/') && window.ApiClient?.serverAddress) {
+                    const serverUrl = window.ApiClient.serverAddress();
+                    if (serverUrl) {
+                        val = serverUrl.replace(/\/$/, '') + val;
+                    }
+                }
                 this._currentSrc = val;
                 console.debug(`playing url: ${val}`);
 
                 // Convert to seconds
                 const ms = (options.playerStartPositionTicks || 0) / 10000;
                 this._currentPlayOptions = options;
-                this._subtitleTrackIndexToSetOnPlaying = options.mediaSource.DefaultSubtitleStreamIndex == null ? -1 : options.mediaSource.DefaultSubtitleStreamIndex;
-                this._audioTrackIndexToSetOnPlaying = options.mediaSource.DefaultAudioStreamIndex;
+                const mediaSource = options.mediaSource || {};
+                this._subtitleTrackIndexToSetOnPlaying = mediaSource.DefaultSubtitleStreamIndex == null ? -1 : mediaSource.DefaultSubtitleStreamIndex;
+                this._audioTrackIndexToSetOnPlaying = mediaSource.DefaultAudioStreamIndex;
 
                 console.log('[MPV] Audio track index:', this._audioTrackIndexToSetOnPlaying);
                 console.log('[MPV] Subtitle track index:', this._subtitleTrackIndexToSetOnPlaying);
 
-                const streamdata = {type: 'video', headers: {'User-Agent': jmpInfo.userAgent}, metadata: options.item, media: {}};
+                const streamdata = {
+                    type: 'video',
+                    headers: window.abyssfinPlayback?.buildStreamHeaders?.() || { 'User-Agent': jmpInfo.userAgent },
+                    metadata: options.item,
+                    media: {}
+                };
                 const fps = this.tryGetFramerate(options);
                 if (fps) {
                     streamdata.frameRate = fps;
@@ -339,7 +356,7 @@
 
                 const player = window.api.player;
 
-                const streams = options.mediaSource?.MediaStreams || [];
+                const streams = mediaSource.MediaStreams || [];
 
                 // Handle audio
                 const audioRelIndex = this._audioTrackIndexToSetOnPlaying != null && this._audioTrackIndexToSetOnPlaying >= 0

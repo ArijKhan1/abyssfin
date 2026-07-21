@@ -147,12 +147,26 @@
         playbackManager._currentMediaSource = playOptions.mediaSource;
     }
 
+    function buildStreamHeaders() {
+        const headers = { 'User-Agent': jmpInfo.userAgent };
+        const token = window.ApiClient?.accessToken?.() || '';
+        if (token) {
+            headers['X-Emby-Token'] = token;
+        }
+        const serverUrl = window.ApiClient?.serverAddress?.() || '';
+        if (serverUrl) {
+            headers['Referer'] = serverUrl.endsWith('/') ? serverUrl : `${serverUrl}/`;
+        }
+        return headers;
+    }
+
     window.abyssfinPlayback = {
         releaseScrollLock,
         isJellyfinPlaybackReady,
         toFileUrl,
         resolveMpvPlayer,
         attachOfflinePlayer,
+        buildStreamHeaders,
         skipIntro(playbackManager) {
             if (!playbackManager) {
                 return false;

@@ -164,6 +164,22 @@
         document.head.appendChild(style);
     }
 
+    function setDownloadButtonVisible(visible) {
+        const button = document.getElementById('abyssfin-download-btn');
+        if (button)
+            button.style.display = visible ? '' : 'none';
+    }
+
+    function syncDownloadButtonVisibility() {
+        if (window.jmpInfo?.nativeDownloadHub)
+            return;
+
+        const pm = window.playbackManager;
+        const player = pm?._currentPlayer;
+        const isStreaming = !!(pm && player && (player._started || player._currentSrc));
+        setDownloadButtonVisible(!isStreaming);
+    }
+
     function updateDownloadButton(api) {
         const button = document.getElementById('abyssfin-download-btn');
         const dl = window.abyssfinDownload;
@@ -518,12 +534,26 @@
             if (!window.jmpInfo?.nativeDownloadHub)
                 injectDownloadButton();
             updateDownloadButton(api);
+            syncDownloadButtonVisibility();
             redirectToOfflineLibraryIfNeeded();
-            waitForPlaybackManager(() => { void tryPlayPendingItem(); });
+            waitForPlaybackManager((pm) => {
+                void tryPlayPendingItem();
+                if (!window.jmpInfo?.nativeDownloadHub && api.player) {
+                    api.player.playing.connect(syncDownloadButtonVisibility);
+                    api.player.buffering.connect(syncDownloadButtonVisibility);
+                    api.player.finished.connect(syncDownloadButtonVisibility);
+                    api.player.stopped.connect(syncDownloadButtonVisibility);
+                    api.player.canceled.connect(syncDownloadButtonVisibility);
+                    api.player.error.connect(syncDownloadButtonVisibility);
+                }
+            });
         }
 
         if (api.download.downloadsChanged?.connect) {
-            api.download.downloadsChanged.connect(() => updateDownloadButton(api));
+            api.download.downloadsChanged.connect(() => {
+                updateDownloadButton(api);
+                syncDownloadButtonVisibility();
+            });
         }
 
         if (api.download.downloadProgress?.connect) {
@@ -539,6 +569,7 @@
                 const entry = downloads.find(row => row.itemId === itemId) || {};
                 showToast('Download complete', `${entry.title || 'Media'} is ready to watch offline.`, 'success');
                 updateDownloadButton(api);
+                syncDownloadButtonVisibility();
             });
         }
 
@@ -546,6 +577,7 @@
             api.download.downloadFailed.connect((itemId, error) => {
                 showToast('Download failed', error || 'Could not save this item for offline viewing.', 'error');
                 updateDownloadButton(api);
+                syncDownloadButtonVisibility();
             });
         }
     })();

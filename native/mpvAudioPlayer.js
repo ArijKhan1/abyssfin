@@ -76,7 +76,13 @@ class mpvAudioPlayer {
 
         function setCurrentSrc(options) {
             return new Promise((resolve) => {
-                const val = options.url;
+                let val = options.url;
+                if (typeof val === 'string' && val.startsWith('/') && window.ApiClient?.serverAddress) {
+                    const serverUrl = window.ApiClient.serverAddress();
+                    if (serverUrl) {
+                        val = serverUrl.replace(/\/$/, '') + val;
+                    }
+                }
                 self._currentSrc = val;
                 console.debug('playing url: ' + val);
 
@@ -86,7 +92,12 @@ class mpvAudioPlayer {
 
                 window.api.player.load(val,
                     { startMilliseconds: ms, autoplay: true },
-                    {type: 'music', headers: {'User-Agent': jmpInfo.userAgent}, metadata: options.item, media: {}},
+                    {
+                        type: 'music',
+                        headers: window.abyssfinPlayback?.buildStreamHeaders?.() || { 'User-Agent': jmpInfo.userAgent },
+                        metadata: options.item,
+                        media: {}
+                    },
                     '#1',
                     '',
                     resolve);

@@ -7,13 +7,17 @@ Item {
   id: root
 
   property var downloadComponent
+  property var playerComponent
   property var hostWindow
   property string currentWebUrl: ""
   property bool panelOpen: false
+  property bool streamPlaybackActive: false
   property var downloadItems: []
 
   readonly property bool onOfflineLibraryPage: currentWebUrl.indexOf("offline-library") >= 0
+  readonly property bool offlinePlaybackActive: downloadComponent ? downloadComponent.offlinePlaybackActive : false
   readonly property bool hubVisible: hostWindow && hostWindow.webDesktopMode && !onOfflineLibraryPage
+                                   && !streamPlaybackActive && !offlinePlaybackActive
   readonly property bool panelVisible: panelOpen && hubVisible
   readonly property int activeCount: downloadComponent ? downloadComponent.activeDownloadCount : 0
   readonly property int readyCount: downloadComponent ? downloadComponent.completedDownloadCount : 0
@@ -61,6 +65,38 @@ Item {
   onHubVisibleChanged: {
     if (!hubVisible)
       panelOpen = false
+  }
+
+  function markStreamPlaybackActive(active) {
+    if (offlinePlaybackActive)
+      return
+    if (streamPlaybackActive === active)
+      return
+    streamPlaybackActive = active
+    if (active)
+      panelOpen = false
+  }
+
+  Connections {
+    target: playerComponent
+    function onPlaying() { root.markStreamPlaybackActive(true) }
+    function onBuffering() { root.markStreamPlaybackActive(true) }
+    function onPaused() {
+      if (root.streamPlaybackActive)
+        root.panelOpen = false
+    }
+    function onStopped() { root.markStreamPlaybackActive(false) }
+    function onFinished() { root.markStreamPlaybackActive(false) }
+    function onCanceled() { root.markStreamPlaybackActive(false) }
+    function onError() { root.markStreamPlaybackActive(false) }
+  }
+
+  Connections {
+    target: downloadComponent
+    function onOfflinePlaybackActiveChanged() {
+      if (root.offlinePlaybackActive)
+        root.panelOpen = false
+    }
   }
 
   onCurrentWebUrlChanged: {

@@ -1320,6 +1320,7 @@ Window
   OfflineDownloadHub {
     id: offlineHub
     downloadComponent: components.download
+    playerComponent: components.player
     hostWindow: mainWindow
     currentWebUrl: mainWindow.currentWebUrl
   }
