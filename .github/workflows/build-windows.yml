@@ -34,7 +34,7 @@ jobs:
           #   vc_redist_arch: arm64
           #   vcvars: vcvarsamd64_arm64.bat
           #   machine: ARM64
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
     - uses: actions/checkout@v6
       with:
@@ -68,26 +68,13 @@ jobs:
           mv mpv-fallback-tmp/libmpv-2.dll build/mpv-fallback/
         fi
       shell: bash
-    - name: Locate MSVC
-      id: msvc
-      run: |
-        $vsRedist = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $vsRedist) { throw "Could not find VC++ runtime DLLs on runner" }
-        "redist=$($vsRedist.FullName)" >> $env:GITHUB_OUTPUT
-        $vcvars = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Auxiliary\Build\${{ matrix.vcvars }}" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $vcvars) { throw "Could not find ${{ matrix.vcvars }} on runner" }
-        "vcvars=$($vcvars.FullName)" >> $env:GITHUB_OUTPUT
-      shell: powershell
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
     - name: Bundle VC runtime DLLs
-      run: |
-        mkdir deps
-        mkdir deps/vcruntime
-        Copy-Item "${{ steps.msvc.outputs.redist }}\*.dll" deps/vcruntime/
-        Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile deps/vc_redist.x64.exe
-      shell: powershell
+      run: powershell -ExecutionPolicy Bypass -File dev/windows/ci-bundle-vcruntime.ps1
     - name: Build
       run: |
-        call "${{ steps.msvc.outputs.vcvars }}"
         cd build
         set PATH=%PATH%;C:\Program Files (x86)\Inno Setup 6;%CD%
         cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=output -DQTROOT=%QT_ROOT_DIR% -DMPV_INCLUDE_DIR=mpv/include -DMPV_LIBRARY=mpv/libmpv-2.dll -DCHECK_FOR_UPDATES=ON -DUSE_STATIC_MPVQT=ON ..
