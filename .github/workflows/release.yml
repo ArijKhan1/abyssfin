@@ -110,18 +110,28 @@ jobs:
           mv mpv-fallback-tmp/libmpv-2.dll build/mpv-fallback/
         shell: bash
 
+      - name: Locate MSVC
+        id: msvc
+        run: |
+          $vsRedist = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $vsRedist) { throw "Could not find VC++ runtime DLLs on runner" }
+          "redist=$($vsRedist.FullName)" >> $env:GITHUB_OUTPUT
+          $vcvars = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Auxiliary\Build\vcvars64.bat" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $vcvars) { throw "Could not find vcvars64.bat on runner" }
+          "vcvars=$($vcvars.FullName)" >> $env:GITHUB_OUTPUT
+        shell: powershell
+
       - name: Bundle VC runtime DLLs
         run: |
           mkdir deps
           mkdir deps/vcruntime
-          $vsRedist = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT" | Select-Object -First 1
-          Copy-Item "$vsRedist\*.dll" deps/vcruntime/
+          Copy-Item "${{ steps.msvc.outputs.redist }}\*.dll" deps/vcruntime/
           Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile deps/vc_redist.x64.exe
         shell: powershell
 
       - name: Build
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          call "${{ steps.msvc.outputs.vcvars }}"
           cd build
           set PATH=%PATH%;C:\Program Files (x86)\Inno Setup 6;%CD%
           cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=output -DQTROOT=%QT_ROOT_DIR% -DMPV_INCLUDE_DIR=mpv/include -DMPV_LIBRARY=mpv/libmpv-2.dll -DCHECK_FOR_UPDATES=ON -DUSE_STATIC_MPVQT=ON ..
@@ -167,15 +177,25 @@ jobs:
 
   publish:
     needs: [macos, windows, linux]
+    if: ${{ !cancelled() && (needs.macos.result == 'success' || needs.linux.result == 'success' || needs.windows.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
       - uses: actions/download-artifact@v7
+        continue-on-error: true
         with:
           pattern: "*"
           merge-multiple: true
           path: dist
+
+      - name: Verify release assets
+        run: |
+          if [ -z "$(ls -A dist 2>/dev/null)" ]; then
+            echo "No build artifacts were uploaded." >&2
+            exit 1
+          fi
+          ls -lh dist
 
       - name: Resolve release tag
         id: tag
