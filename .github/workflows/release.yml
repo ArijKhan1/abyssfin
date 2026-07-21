@@ -1,0 +1,216 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+env:
+  MPV_VERSION: "20251214-git-f7be2ee"
+  QT_VERSION: "6.9.3"
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            artifact: macos-arm64
+          - runner: macos-15-intel
+            artifact: macos-x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: clang_64
+          modules: "qtwebengine qtwebchannel qtpositioning"
+
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install mpv create-dmg
+
+      - name: Build and bundle
+        run: |
+          cmake -B build -G Ninja \
+            -DQTROOT=$QT_ROOT_DIR \
+            -DCMAKE_PREFIX_PATH=$QT_ROOT_DIR \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=build/output \
+            -DCHECK_FOR_UPDATES=ON \
+            -DUSE_STATIC_MPVQT=ON
+          cmake --build build --target install
+          codesign --force --deep -s - "./build/output/Abyssfin.app/"
+          VERSION=$(cat VERSION)
+          ARCH=$(uname -m)
+          DMG_NAME="Abyssfin-${VERSION}-${ARCH}.dmg"
+          create-dmg \
+            --volname "Abyssfin v${VERSION}" \
+            --no-internet-enable \
+            --window-size 500 300 \
+            --icon-size 100 \
+            --icon "Abyssfin.app" 125 150 \
+            --app-drop-link 375 150 \
+            "${DMG_NAME}" "./build/output/Abyssfin.app"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: Abyssfin-*.dmg
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "${{ env.QT_VERSION }}"
+          arch: win64_msvc2022_64
+          modules: "qtwebengine qtwebchannel qtpositioning"
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+        shell: powershell
+
+      - name: Install dependencies
+        run: |
+          mkdir build
+          curl -L https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-x86_64-v3-${{ env.MPV_VERSION }}.7z/download > mpv.7z
+          7z x mpv.7z
+          mkdir mpv
+          mv include mpv
+          gendef libmpv-2.dll
+          mv libmpv-2.dll mpv/libmpv-2.dll
+          mv libmpv-2.def mpv.def
+          mv mpv.def libmpv.dll.a mpv/
+          mv mpv build/
+          curl -L https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-x86_64-${{ env.MPV_VERSION }}.7z/download > mpv-fallback.7z
+          7z x mpv-fallback.7z -ompv-fallback-tmp
+          mkdir build/mpv-fallback
+          mv mpv-fallback-tmp/libmpv-2.dll build/mpv-fallback/
+        shell: bash
+
+      - name: Bundle VC runtime DLLs
+        run: |
+          mkdir deps
+          mkdir deps/vcruntime
+          $vsRedist = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT" | Select-Object -First 1
+          Copy-Item "$vsRedist\*.dll" deps/vcruntime/
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile deps/vc_redist.x64.exe
+        shell: powershell
+
+      - name: Build
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cd build
+          set PATH=%PATH%;C:\Program Files (x86)\Inno Setup 6;%CD%
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=output -DQTROOT=%QT_ROOT_DIR% -DMPV_INCLUDE_DIR=mpv/include -DMPV_LIBRARY=mpv/libmpv-2.dll -DCHECK_FOR_UPDATES=ON -DUSE_STATIC_MPVQT=ON ..
+          lib /def:mpv\mpv.def /out:mpv\libmpv-2.dll.lib /MACHINE:X64
+          ninja
+          ninja windows_all
+        shell: cmd
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64-installer
+          path: build/Abyssfin-*.exe
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64-portable
+          path: build/Abyssfin-*.zip
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Build AppImage
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          docker build \
+            -t abyssfin-appimage \
+            -f dev/appimage/Dockerfile \
+            .
+          mkdir -p output
+          docker run --rm \
+            -v "${WORKSPACE}/output:/host-output" \
+            abyssfin-appimage
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-appimage-x86_64
+          path: output/Abyssfin-*.AppImage
+
+  publish:
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: "*"
+          merge-multiple: true
+          path: dist
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.value }}
+          name: Abyssfin ${{ steps.tag.outputs.value }}
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ### macOS
+            1. Download the DMG for your Mac (**arm64** = Apple Silicon, **x86_64** = Intel).
+            2. Open the DMG and drag **Abyssfin** into **Applications**.
+            3. Launch from Applications. On first open, right-click → Open if macOS blocks the app.
+
+            ### Windows
+            - **Installer (`.exe`)** — recommended for most users.
+            - **Portable (`.zip`)** — unzip anywhere and run `Abyssfin.exe`.
+
+            ### Linux
+            - Download the AppImage, make it executable (`chmod +x`), and run it.
+
+            ## Highlights
+            - Jellyfin desktop client with native MPV playback
+            - Offline downloads with local library
+            - Menu bar / tray controls, PiP, and bundled Abyss theme
+          files: dist/*
+          draft: false
+          prerelease: false
