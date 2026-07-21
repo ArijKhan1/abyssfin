@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew update
-          brew install mpv create-dmg
+          brew install mpv sdl3 create-dmg
 
       - name: Build and bundle
         run: |

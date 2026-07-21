@@ -230,6 +230,39 @@ endwhile()
 
 message(STATUS "Library path fixing complete")
 
+#
+# sdl2-compat (Homebrew "sdl2") dynamically loads libSDL3 at runtime.
+#
+if(EXISTS "${framework_path}/libSDL2-2.0.0.dylib" OR EXISTS "${framework_path}/libSDL2.dylib")
+  set(sdl3_src "")
+  foreach(candidate
+      "${brew_lib}/libSDL3.dylib"
+      "${brew_lib}/libSDL3.0.dylib"
+      "${brew_prefix}/opt/sdl3/lib/libSDL3.dylib"
+      "${brew_prefix}/opt/sdl3/lib/libSDL3.0.dylib")
+    if(EXISTS "${candidate}")
+      get_filename_component(sdl3_src "${candidate}" REALPATH)
+      break()
+    endif()
+  endforeach()
+
+  set(sdl3_dest "${framework_path}/libSDL3.dylib")
+  if(sdl3_src AND NOT EXISTS "${sdl3_dest}")
+    message(STATUS "Bundling SDL3 for sdl2-compat: ${sdl3_src} -> ${sdl3_dest}")
+    file(COPY "${sdl3_src}" DESTINATION "${framework_path}")
+    get_filename_component(sdl3_name "${sdl3_src}" NAME)
+    if(NOT "${sdl3_name}" STREQUAL "libSDL3.dylib")
+      file(RENAME "${framework_path}/${sdl3_name}" "${sdl3_dest}")
+    endif()
+    execute_process(
+      COMMAND install_name_tool -id "@executable_path/../Frameworks/libSDL3.dylib" "${sdl3_dest}"
+      ERROR_QUIET
+    )
+  elseif(NOT sdl3_src)
+    message(WARNING "Bundled libSDL2 but libSDL3 not found; install sdl3 before bundling")
+  endif()
+endif()
+
 # List all bundled libraries for verification
 file(GLOB final_dylibs "${framework_path}/*.dylib")
 message(STATUS "=== Bundled libraries in Frameworks ===")
