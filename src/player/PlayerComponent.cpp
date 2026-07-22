@@ -380,9 +380,9 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
   else
   {
     const int audioIndex = audioStream.toInt();
-    extraArgs.insert("aid", audioIndex > 0 ? audioIndex : 1);
+    extraArgs.insert("aid", QString::number(audioIndex > 0 ? audioIndex : 1));
     if (subtitleStream.canConvert<int>() && subtitleStream.toInt() >= 0)
-      extraArgs.insert("sid", subtitleStream.toInt());
+      extraArgs.insert("sid", QString::number(subtitleStream.toInt()));
     else
       extraArgs.insert("sid", "no");
   }
