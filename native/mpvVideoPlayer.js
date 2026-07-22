@@ -167,7 +167,7 @@
 
                     // Navigate to OSD view to show playback screen
                     if (this._currentPlayOptions.fullscreen) {
-                        this.appRouter.showVideoOsd();
+                        requestAnimationFrame(() => this.appRouter.showVideoOsd());
                         // Lower video dialog z-index so OSD can receive input
                         if (dlg) {
                             dlg.style.zIndex = 'unset';
@@ -199,12 +199,19 @@
                 this.events.trigger(this, 'waiting');
             };
 
+            this.onBuffering = (percent) => {
+                if (!this._started && percent > 0) {
+                    this.loading.hide();
+                }
+            };
+
             /**
              * @private
              * @param e {Event} The event received from the `<video>` element
              */
             this.onError = async (error) => {
                 this.removeMediaDialog();
+                this.loading.hide();
                 console.error(`media error: ${error}`);
 
                 const errorData = {
@@ -544,6 +551,7 @@
             player.updateDuration.disconnect(this.onDuration);
             player.error.disconnect(this.onError);
             player.paused.disconnect(this.onPause);
+            player.buffering.disconnect(this.onBuffering);
             player.bufferedRangesUpdated.disconnect(this.onBufferedRangesUpdated);
         }
 
@@ -592,6 +600,7 @@
                     player.updateDuration.connect(this.onDuration);
                     player.error.connect(this.onError);
                     player.paused.connect(this.onPause);
+                    player.buffering.connect(this.onBuffering);
                     player.bufferedRangesUpdated.connect(this.onBufferedRangesUpdated);
                 }
 
@@ -611,6 +620,7 @@
                     player.updateDuration.connect(this.onDuration);
                     player.error.connect(this.onError);
                     player.paused.connect(this.onPause);
+                    player.buffering.connect(this.onBuffering);
                     player.bufferedRangesUpdated.connect(this.onBufferedRangesUpdated);
                 }
 

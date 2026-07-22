@@ -291,6 +291,8 @@ private:
   QSet<QString> m_audioDevices;
   bool m_streamSwitchImminent;
   bool m_doAc3Transcoding;
+  bool m_pendingLoadIsLocal;
+  bool m_selectStreamsInPreloadHook;
   QStringList m_passthroughCodecs;
   QVariantMap m_serverMediaInfo;
   QVariant m_currentSubtitleStream;

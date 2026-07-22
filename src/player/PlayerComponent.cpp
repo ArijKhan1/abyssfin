@@ -38,13 +38,16 @@
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-static QStringList variantListToCommandArgs(const QVariantList& args)
+static bool isExternalSubtitleStream(const QVariant& streamSelection)
 {
-  QStringList command;
-  command.reserve(args.size());
-  for (const QVariant& value : args)
-    command << value.toString();
-  return command;
+  return streamSelection.toString().startsWith("#,");
+}
+
+static bool canSetStreamsInline(const QVariant& audioStream, const QVariant& subtitleStream)
+{
+  if (isExternalSubtitleStream(subtitleStream))
+    return false;
+  return audioStream.isValid() && audioStream.canConvert<int>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +67,7 @@ PlayerComponent::PlayerComponent(QObject* parent)
   m_window(nullptr), m_mediaFrameRate(0),
   m_restoreDisplayTimer(this), m_reloadAudioTimer(this),
   m_streamSwitchImminent(false), m_doAc3Transcoding(false),
+  m_pendingLoadIsLocal(false), m_selectStreamsInPreloadHook(true),
   m_videoRectangle(-1, 0, 0, 0),
   m_albumArtProvider(new AlbumArtProvider(this))
 {
@@ -110,7 +114,11 @@ void PlayerComponent::initializeMpv()
   // Properties that needed to be set before init were set in MpvVideoItem constructor
 
   mpv_request_log_messages(m_mpv->mpv(), "terminal-default");
+#ifdef NDEBUG
+  m_mpv->setProperty("msg-level", "warn");
+#else
   m_mpv->setProperty("msg-level", "all=v");
+#endif
 
   mpv_set_wakeup_callback(m_mpv->mpv(), wakeup_cb, this);
 
@@ -126,10 +134,9 @@ void PlayerComponent::initializeMpv()
   // than 0, and web-client expects that we return these times unchanged.
   m_mpv->setProperty( "demuxer-mkv-probe-start-time", false);
 
-  // Upstream mpv sets this to "auto", which disables probing for HLS (at least),
-  // in order to speed up playback start. The situation is more complex in PMP
-  // due to us wanting to use system codecs, so always enable this.
-  m_mpv->setProperty( "demuxer-lavf-probe-info", true);
+  // Upstream mpv uses "auto" for faster HLS startup. Local files still opt into full
+  // probing via a per-load loadfile option in queueMedia().
+  m_mpv->setProperty( "demuxer-lavf-probe-info", "auto");
 
   // Just discard audio output if no audio device could be opened. This gives
   // us better flexibility how to react to such errors (instead of just
@@ -322,7 +329,10 @@ void PlayerComponent::setWindow(QQuickWindow* window)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 bool PlayerComponent::load(const QString& url, const QVariantMap& options, const QVariantMap &metadata, const QVariant& audioStream , const QVariant& subtitleStream)
 {
-  stop();
+  if (m_mpv && m_inPlayback)
+    streamSwitch();
+  else
+    stop();
   queueMedia(url, options, metadata, audioStream, subtitleStream);
   return true;
 }
@@ -343,14 +353,13 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
   m_mediaFrameRate = metadata["frameRate"].toFloat(); // returns 0 on failure
   m_serverMediaInfo = metadata["media"].toMap();
 
-  updateVideoConfiguration();
-
   QUrl qurl = url;
-  QString host = qurl.host();
+  m_pendingLoadIsLocal = (qurl.scheme() == QLatin1String("file"));
+  m_selectStreamsInPreloadHook = !canSetStreamsInline(audioStream, subtitleStream);
 
   QVariantList command;
   command << "loadfile" << qurl.toString(QUrl::FullyEncoded);
-  command << "append-play"; // if nothing is playing, play it now, otherwise just enqueue it
+  command << (m_streamSwitchImminent ? "replace" : "append-play");
 
 #if MPV_CLIENT_API_VERSION >= MPV_MAKE_VERSION(2, 3)
   command << -1; // insert_at_idx
@@ -363,8 +372,22 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
     extraArgs.insert("start", "+" + QString::number(startMilliseconds / 1000.0));
 
   // we're going to select these streams later, in the preloaded hook
-  extraArgs.insert("aid", "no");
-  extraArgs.insert("sid", "no");
+  if (m_selectStreamsInPreloadHook)
+  {
+    extraArgs.insert("aid", "no");
+    extraArgs.insert("sid", "no");
+  }
+  else
+  {
+    const int audioIndex = audioStream.toInt();
+    extraArgs.insert("aid", audioIndex > 0 ? audioIndex : 1);
+    if (subtitleStream.canConvert<int>() && subtitleStream.toInt() >= 0)
+      extraArgs.insert("sid", subtitleStream.toInt());
+    else
+      extraArgs.insert("sid", "no");
+  }
+
+  extraArgs.insert("demuxer-lavf-probe-info", m_pendingLoadIsLocal ? "yes" : "auto");
 
   m_currentSubtitleStream = subtitleStream;
   m_currentAudioStream = audioStream;
@@ -395,15 +418,20 @@ void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options,
 
   command << extraArgs;
 
-  m_mpv->command(variantListToCommandArgs(command));
+  mpv::qt::command(m_mpv->mpv(), QVariant(command));
 
   QVariantMap jellyfinMetadata = metadata["metadata"].toMap();
   QUrl jellyfinBaseUrl = qurl.adjusted(QUrl::RemovePath | QUrl::RemoveQuery);
   emit onMetaData(jellyfinMetadata, jellyfinBaseUrl);
 
-  // Request album art from the provider
+  // Fetch artwork after load starts so it doesn't compete with stream startup.
   if (m_albumArtProvider)
-    m_albumArtProvider->requestArtwork(jellyfinMetadata, jellyfinBaseUrl);
+  {
+    QTimer::singleShot(0, this, [this, jellyfinMetadata, jellyfinBaseUrl]() {
+      if (m_albumArtProvider)
+        m_albumArtProvider->requestArtwork(jellyfinMetadata, jellyfinBaseUrl);
+    });
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -691,7 +719,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
           qInfo() << "resuming loading";
           m_mpv->command( QStringList() << "hook-ack" << resumeId);
         };
-        if (switchDisplayFrameRate())
+        if (m_pendingLoadIsLocal && switchDisplayFrameRate())
         {
           // Now wait for some time for mode change - this is needed because mode changing can take some
           // time, during which the screen is black, and initializing hardware decoding could fail due
@@ -711,9 +739,26 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       // Used to initialize stream selections.
       if (!strcmp(msg->args[1], "2"))
       {
-        reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
-        reselectStream(m_currentAudioStream, MediaType::Audio);
-        m_mpv->command( QStringList() << "hook-ack" << resumeId);
+        if (m_selectStreamsInPreloadHook)
+        {
+          reselectStream(m_currentAudioStream, MediaType::Audio);
+          if (isExternalSubtitleStream(m_currentSubtitleStream))
+          {
+            m_mpv->command( QStringList() << "hook-ack" << resumeId);
+            QTimer::singleShot(0, this, [this]() {
+              reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
+            });
+          }
+          else
+          {
+            reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
+            m_mpv->command( QStringList() << "hook-ack" << resumeId);
+          }
+        }
+        else
+        {
+          m_mpv->command( QStringList() << "hook-ack" << resumeId);
+        }
         break;
       }
       break;
@@ -731,7 +776,7 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
           qInfo() << "resuming loading";
           mpv_hook_continue(m_mpv->mpv(), id);
         };
-        if (switchDisplayFrameRate())
+        if (m_pendingLoadIsLocal && switchDisplayFrameRate())
         {
           // Now wait for some time for mode change - this is needed because mode changing can take some
           // time, during which the screen is black, and initializing hardware decoding could fail due
@@ -749,9 +794,26 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
       }
       if (!strcmp(hook->name, "on_preloaded"))
       {
-        reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
-        reselectStream(m_currentAudioStream, MediaType::Audio);
-        mpv_hook_continue(m_mpv->mpv(), id);
+        if (m_selectStreamsInPreloadHook)
+        {
+          reselectStream(m_currentAudioStream, MediaType::Audio);
+          if (isExternalSubtitleStream(m_currentSubtitleStream))
+          {
+            mpv_hook_continue(m_mpv->mpv(), id);
+            QTimer::singleShot(0, this, [this]() {
+              reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
+            });
+          }
+          else
+          {
+            reselectStream(m_currentSubtitleStream, MediaType::Subtitle);
+            mpv_hook_continue(m_mpv->mpv(), id);
+          }
+        }
+        else
+        {
+          mpv_hook_continue(m_mpv->mpv(), id);
+        }
         break;
       }
       break;
@@ -956,7 +1018,7 @@ void PlayerComponent::seekTo(qint64 ms)
   }
   double timeSecs = ms / 1000.0;
   QVariantList args = (QVariantList() << "seek" << timeSecs << "absolute+exact");
-  m_mpv->command(variantListToCommandArgs(args));
+  mpv::qt::command(m_mpv->mpv(), QVariant(args));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

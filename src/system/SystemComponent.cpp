@@ -545,6 +545,16 @@ void SystemComponent::runUserScript(QString script)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
+static QString prepareBundledAbyssCss(const QByteArray& rawCss)
+{
+  QString css = QString::fromUtf8(rawCss);
+  css.remove(QRegularExpression("@import\\s+url\\([^)]+\\)\\s*;"));
+  css.replace(QRegularExpression("url\\(\\s*https://cdn\\.jsdelivr\\.net/[^)]+\\)"),
+              QStringLiteral("url(qrc:///fonts/MaterialIcons-Round.woff2)"));
+  return css;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
 void SystemComponent::hello(const QString& version)
 {
   qDebug() << QString("Web-client (%1) fully inited.").arg(version);
@@ -628,7 +638,7 @@ QString SystemComponent::getNativeShellScript()
   {
     QFile abyssCss(":/themes/abyss.css");
     if (abyssCss.open(QIODevice::ReadOnly))
-      clientData.insert("bundledAbyssCss", QString::fromUtf8(abyssCss.readAll()));
+      clientData.insert("bundledAbyssCss", prepareBundledAbyssCss(abyssCss.readAll()));
   }
 
   QString jmpInfoDeclaration = "const jmpInfo = JSON.parse(window.atob(\"" +
