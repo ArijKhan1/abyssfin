@@ -244,6 +244,7 @@ void PlayerComponent::initializeMpv()
 
   connect(this, &PlayerComponent::onMpvEvents, this, &PlayerComponent::handleMpvEvents, Qt::QueuedConnection);
   emit onMpvEvents();
+  flushPendingMediaLoad();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -338,10 +339,24 @@ bool PlayerComponent::load(const QString& url, const QVariantMap& options, const
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::flushPendingMediaLoad()
+{
+  if (!m_hasPendingMediaLoad || !m_mpv)
+    return;
+
+  m_hasPendingMediaLoad = false;
+  const PendingMediaLoad pending = m_pendingMediaLoad;
+  qInfo() << "PlayerComponent: replaying deferred load for" << pending.url;
+  queueMedia(pending.url, pending.options, pending.metadata, pending.audioStream, pending.subtitleStream);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::queueMedia(const QString& url, const QVariantMap& options, const QVariantMap &metadata, const QVariant& audioStream, const QVariant& subtitleStream)
 {
   if (!m_mpv) {
-    qWarning() << "PlayerComponent::queueMedia: mpv not initialized yet";
+    qWarning() << "PlayerComponent::queueMedia: mpv not initialized yet, deferring load";
+    m_pendingMediaLoad = { url, options, metadata, audioStream, subtitleStream };
+    m_hasPendingMediaLoad = true;
     return;
   }
 
@@ -980,6 +995,7 @@ void PlayerComponent::notifyVolumeChange(double volume)
 void PlayerComponent::stop()
 {
   if (!m_mpv) {
+    m_hasPendingMediaLoad = false;
     qWarning() << "PlayerComponent::stop: mpv not initialized yet";
     return;
   }

@@ -118,6 +118,25 @@
              * @type {Array<{start: number, end: number}>}
              */
             this._bufferedRanges = [];
+            this._loadTimeoutId = null;
+
+            this.clearLoadTimeout = () => {
+                if (this._loadTimeoutId != null) {
+                    window.clearTimeout(this._loadTimeoutId);
+                    this._loadTimeoutId = null;
+                }
+            };
+
+            this.startLoadTimeout = () => {
+                this.clearLoadTimeout();
+                this._loadTimeoutId = window.setTimeout(() => {
+                    this._loadTimeoutId = null;
+                    if (!this._started) {
+                        console.warn('[MPV] playback load timed out');
+                        void this.onError('Timed out while loading playback');
+                    }
+                }, 45000);
+            };
 
             /**
              * @private
@@ -149,6 +168,7 @@
              * @private
              */
             this.onPlaying = () => {
+                this.clearLoadTimeout();
                 if (!this._started) {
                     this._started = true;
 
@@ -201,6 +221,7 @@
 
             this.onBuffering = (percent) => {
                 if (!this._started && percent > 0) {
+                    this.clearLoadTimeout();
                     this.loading.hide();
                 }
             };
@@ -210,6 +231,7 @@
              * @param e {Event} The event received from the `<video>` element
              */
             this.onError = async (error) => {
+                this.clearLoadTimeout();
                 this.removeMediaDialog();
                 this.loading.hide();
                 console.error(`media error: ${error}`);
@@ -257,6 +279,7 @@
             this.resetSubtitleOffset();
             if (options.fullscreen) {
                 this.loading.show();
+                this.startLoadTimeout();
             }
             const elem = await this.createMediaElement(options);
             return await this.setCurrentSrc(elem, options);
@@ -313,6 +336,21 @@
             return new Promise(async (resolve) => {
                 let val = options.url;
                 const itemId = options.item?.Id;
+
+                if (!window.abyssfinPlayback?.isMpvBackendReady?.()) {
+                    let retries = 0;
+                    while (retries < 100 && !window.abyssfinPlayback?.isMpvBackendReady?.()) {
+                        await new Promise((r) => window.setTimeout(r, 50));
+                        retries++;
+                    }
+                    if (!window.abyssfinPlayback?.isMpvBackendReady?.()) {
+                        console.warn('[MPV] mpv backend not ready');
+                        this.clearLoadTimeout();
+                        void this.onError('Video player is not ready yet. Try again in a moment.');
+                        resolve();
+                        return;
+                    }
+                }
 
                 // Offline playback sets a file:// URL before play(); don't override stream URLs.
                 const isLocalPlayback = typeof val === 'string' && val.startsWith('file://');
@@ -496,6 +534,7 @@
         }
 
         onEndedInternal() {
+            this.clearLoadTimeout();
             const stopInfo = {
                 src: this._currentSrc
             };

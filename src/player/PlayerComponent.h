@@ -269,6 +269,16 @@ private:
   void updateVideoAspectSettings();
   QVariantList findStreamsForURL(const QString &url);
   void reselectStream(const QVariant &streamSelection, MediaType target);
+  void flushPendingMediaLoad();
+
+  struct PendingMediaLoad
+  {
+    QString url;
+    QVariantMap options;
+    QVariantMap metadata;
+    QVariant audioStream;
+    QVariant subtitleStream;
+  };
 
   MpvController* m_mpv = nullptr;
 
@@ -293,6 +303,8 @@ private:
   bool m_doAc3Transcoding;
   bool m_pendingLoadIsLocal;
   bool m_selectStreamsInPreloadHook;
+  bool m_hasPendingMediaLoad = false;
+  PendingMediaLoad m_pendingMediaLoad;
   QStringList m_passthroughCodecs;
   QVariantMap m_serverMediaInfo;
   QVariant m_currentSubtitleStream;
