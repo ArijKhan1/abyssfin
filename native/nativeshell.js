@@ -17,21 +17,12 @@ const features = [
 ];
 
 const getPlugins = () => {
-    const basePlugins = [
+    return [
+        'mpvVideoPlayer',
+        'mpvAudioPlayer',
         'inputPlugin',
         'updatePlugin'
     ];
-
-    const mpvEnabled = jmpInfo.settings?.main?.enableMPV !== false;
-    if (mpvEnabled) {
-        return [
-            'mpvVideoPlayer',
-            'mpvAudioPlayer',
-            ...basePlugins
-        ];
-    }
-
-    return basePlugins;
 };
 
 const plugins = getPlugins();

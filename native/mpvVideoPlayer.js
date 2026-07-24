@@ -337,21 +337,6 @@
                 let val = options.url;
                 const itemId = options.item?.Id;
 
-                if (!window.abyssfinPlayback?.isMpvBackendReady?.()) {
-                    let retries = 0;
-                    while (retries < 100 && !window.abyssfinPlayback?.isMpvBackendReady?.()) {
-                        await new Promise((r) => window.setTimeout(r, 50));
-                        retries++;
-                    }
-                    if (!window.abyssfinPlayback?.isMpvBackendReady?.()) {
-                        console.warn('[MPV] mpv backend not ready');
-                        this.clearLoadTimeout();
-                        void this.onError('Video player is not ready yet. Try again in a moment.');
-                        resolve();
-                        return;
-                    }
-                }
-
                 // Offline playback sets a file:// URL before play(); don't override stream URLs.
                 const isLocalPlayback = typeof val === 'string' && val.startsWith('file://');
                 if (!isLocalPlayback && itemId && options.preferLocalDownload && window.api?.download?.getLocalPath) {

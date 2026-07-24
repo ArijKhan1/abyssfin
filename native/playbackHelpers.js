@@ -114,6 +114,8 @@
         const player = window.api?.player;
         if (!player)
             return false;
+        if (typeof player.isMpvReady === 'function')
+            return !!player.isMpvReady();
         const ready = player.mpvReady;
         return ready === true || ready === 1;
     }

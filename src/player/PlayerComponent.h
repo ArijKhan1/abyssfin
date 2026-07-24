@@ -79,7 +79,7 @@ public:
   Q_INVOKABLE void notifyMetadata(const QVariantMap& metadata);
   Q_INVOKABLE void notifyVolumeChange(double volume);
 
-  bool isMpvReady() const { return m_mpv != nullptr; }
+  Q_INVOKABLE bool isMpvReady() const { return m_mpv != nullptr; }
 
   QString nowPlayingTitle() const { return m_nowPlayingTitle; }
   QString playbackState() const { return m_playbackState; }
@@ -304,6 +304,7 @@ private:
   bool m_pendingLoadIsLocal;
   bool m_selectStreamsInPreloadHook;
   bool m_hasPendingMediaLoad = false;
+  bool m_mpvInitialized = false;
   PendingMediaLoad m_pendingMediaLoad;
   QStringList m_passthroughCodecs;
   QVariantMap m_serverMediaInfo;

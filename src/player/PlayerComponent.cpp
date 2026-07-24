@@ -110,6 +110,11 @@ void PlayerComponent::initializeMpv()
   if (!m_mpv)
     throw FatalException(tr("Failed to load mpv."));
 
+  if (m_mpvInitialized)
+    return;
+
+  m_mpvInitialized = true;
+
   // MpvQt already called mpv_initialize(), so mpv is ready
   // Properties that needed to be set before init were set in MpvVideoItem constructor
 
@@ -245,6 +250,7 @@ void PlayerComponent::initializeMpv()
   connect(this, &PlayerComponent::onMpvEvents, this, &PlayerComponent::handleMpvEvents, Qt::QueuedConnection);
   emit onMpvEvents();
   flushPendingMediaLoad();
+  emit mpvReadyChanged(true);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
