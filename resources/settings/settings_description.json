@@ -1,7 +1,7 @@
 [
   {
     "section": "__meta__",
-    "version": 7
+    "version": 8
   },
   {
     "section": "state",
@@ -214,7 +214,7 @@
         "value": "enableMPV",
         "display_name": "Enable MPV Player",
         "help": "Enables MPV player for video and audio playback. When disabled, Jellyfin will fall back to the browser's built-in HTML5 player. This setting requires an application restart to take effect.\n\nNote: Disabling MPV will lose advanced features like audio passthrough, hardware decoding options, and codec-specific settings.",
-        "default": false
+        "default": true
       },
       {
         "value": "enableAbyssSpotlight",

@@ -261,6 +261,36 @@ void SettingsComponent::loadConf(const QString& path, bool storage)
 
   if (version != m_settingsVersion)
   {
+    if (!storage && version == 7 && m_settingsVersion == 8)
+    {
+      qInfo() << "Migrating settings from version 7 to 8";
+      QJsonObject jsonSections = json["sections"].toObject();
+      for (const QString& section : jsonSections.keys())
+      {
+        QJsonObject jsonSection = jsonSections[section].toObject();
+        SettingsSection* sec = getSection(section);
+        if (!sec)
+        {
+          qCritical() << "Trying to load section:" << section << "from config file, but we don't want that.";
+          continue;
+        }
+        for (const QString& setting : jsonSection.keys())
+          sec->setValue(setting, jsonSection.value(setting).toVariant());
+      }
+
+      if (SettingsSection* main = getSection(SETTINGS_SECTION_MAIN))
+      {
+        if (!main->value("enableMPV").toBool())
+        {
+          main->setValue("enableMPV", true);
+          qInfo() << "Enabled MPV player during settings migration (previous default was off)";
+        }
+      }
+
+      saveSettings();
+      return;
+    }
+
     // version 0 means file doesn't exist or is empty - skip backup/warning
     if (version != 0)
     {
