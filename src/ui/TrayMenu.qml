@@ -258,6 +258,30 @@ Window {
 
         TrayMenuButton {
           width: parent.width
+          label: "Skip Credits"
+          glyph: "⏭"
+          onClicked: dispatchAction("skip_credits")
+        }
+
+        TrayMenuButton {
+          width: parent.width
+          label: "Sleep Timer"
+          glyph: "☾"
+          onClicked: dispatchAction("cycle_sleep")
+        }
+
+        TrayMenuButton {
+          width: parent.width
+          label: "Play OP/ED"
+          glyph: "♪"
+          onClicked: {
+            trayMenuWindow.closeMenu()
+            dispatchAction("play_theme")
+          }
+        }
+
+        TrayMenuButton {
+          width: parent.width
           label: {
             if (windowComponent && windowComponent.pipMode)
               return "Exit Picture in Picture"

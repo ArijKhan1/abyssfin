@@ -369,6 +369,12 @@
                 const mediaSource = options.mediaSource || {};
                 this._subtitleTrackIndexToSetOnPlaying = mediaSource.DefaultSubtitleStreamIndex == null ? -1 : mediaSource.DefaultSubtitleStreamIndex;
                 this._audioTrackIndexToSetOnPlaying = mediaSource.DefaultAudioStreamIndex;
+                const remembered = (await window.abyssfinWatch?.hydrateTracks?.(options.item))
+                    || window.abyssfinWatch?.tracksForItem?.(options.item);
+                if (remembered?.audioIndex !== undefined && remembered.audioIndex !== null)
+                    this._audioTrackIndexToSetOnPlaying = remembered.audioIndex;
+                if (remembered?.subtitleIndex !== undefined && remembered.subtitleIndex !== null)
+                    this._subtitleTrackIndexToSetOnPlaying = remembered.subtitleIndex;
 
                 console.log('[MPV] Audio track index:', this._audioTrackIndexToSetOnPlaying);
                 console.log('[MPV] Subtitle track index:', this._subtitleTrackIndexToSetOnPlaying);
@@ -435,6 +441,7 @@
         setSubtitleStreamIndex(index) {
             console.log('[MPV] setSubtitleStreamIndex called with index:', index);
             this._subtitleTrackIndexToSetOnPlaying = index;
+            window.abyssfinWatch?.rememberTracks?.(this._currentPlayOptions?.item, { subtitleIndex: index });
 
             if (index < 0) {
                 window.api.player.setSubtitleStream(-1);
@@ -511,6 +518,7 @@
         setAudioStreamIndex(index) {
             console.log('[MPV] setAudioStreamIndex called with index:', index);
             this._audioTrackIndexToSetOnPlaying = index;
+            window.abyssfinWatch?.rememberTracks?.(this._currentPlayOptions?.item, { audioIndex: index });
 
             const streams = this._currentPlayOptions?.mediaSource?.MediaStreams || [];
             const relIndex = index < 0 ? -1 : this.getRelativeIndexByType(streams, index, 'Audio');

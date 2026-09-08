@@ -16,6 +16,7 @@
 
 #include "MpvVideoItem.h"
 #include "AlbumArtProvider.h"
+#include "SubtitleAppearance.h"
 #include "input/InputComponent.h"
 #include <MpvController>
 
@@ -101,6 +102,14 @@ bool PlayerComponent::componentInitialize()
 {
   // Defer mpv creation until setQtQuickWindow() where we get MpvQt's handle
   // m_mpv will be set via setMpvHandle() called from MpvVideoItem::initMpv()
+  if (SettingsSection* section = SettingsComponent::Get().getSection(SETTINGS_SECTION_SUBTITLES))
+  {
+    SettingsComponent::Get().updatePossibleValues(
+        SETTINGS_SECTION_SUBTITLES,
+        "font",
+        SubtitleAppearance::fontChoices(SubtitleAppearance::systemFontFamilies(),
+                                        section->value("font").toString()));
+  }
   return true;
 }
 
@@ -1683,61 +1692,14 @@ void PlayerComponent::updateSubtitleConfiguration()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::setSubtitleConfiguration()
 {
-  bool assScaleBorderAndShadow = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "ass_scale_border_and_shadow").toBool();
-  m_mpv->setProperty( "sub-ass-style-overrides", assScaleBorderAndShadow ? "ScaledBorderAndShadow=yes" : "ScaledBorderAndShadow=no");
+  SettingsSection* section = SettingsComponent::Get().getSection(SETTINGS_SECTION_SUBTITLES);
+  if (!section || !m_mpv)
+    return;
 
-  QString assStyleOverride = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "ass_style_override").toString();
-  if (!assStyleOverride.isEmpty())
-  {
-    m_mpv->setProperty( "sub-ass-override", assStyleOverride);
-  }
-
-  QVariant size = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "size");
-  if (size != -1)
-  {
-    m_mpv->setProperty( "sub-scale", size.toInt() / 32.0);
-  }
-
-  QString font = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "font").toString();
-  if (!font.isEmpty())
-  {
-    m_mpv->setProperty( "sub-font", font);
-  }
-
-  QString color = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "color").toString();
-  if (!color.isEmpty())
-  {
-    m_mpv->setProperty( "sub-color", color);
-  }
-
-  QString borderColor = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "border_color").toString();
-  if (!borderColor.isEmpty())
-  {
-    m_mpv->setProperty( "sub-border-color", borderColor);
-  }
-
-  QVariant borderSize = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "border_size");
-  if (borderSize != -1)
-  {
-    m_mpv->setProperty( "sub-border-size", borderSize.toInt());
-  }
-
-  QString backgroundColor = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "background_color").toString();
-  QString backgroundTransparency = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "background_transparency").toString();
-  if (!backgroundColor.isEmpty() && !backgroundTransparency.isEmpty())
-  {
-    // Color is #RRGGBB or #AARRGGBB, insert Alpha after # (at position 1)
-    backgroundColor.insert(1, backgroundTransparency);
-    m_mpv->setProperty( "sub-back-color", backgroundColor);
-  }
-
-  QVariant subposString = SettingsComponent::Get().value(SETTINGS_SECTION_SUBTITLES, "placement");
-  auto subpos = subposString.toString().split(",");
-  if (subpos.length() == 2)
-  {
-    m_mpv->setProperty( "sub-align-x", subpos[0]);
-    m_mpv->setProperty( "sub-pos", subpos[1] == "bottom" ? 100 : 10);
-  }
+  const QVariantMap properties = SubtitleAppearance::mpvProperties(
+      SubtitleAppearance::optionsFromSettings(section->allValues()));
+  for (auto it = properties.constBegin(); it != properties.constEnd(); ++it)
+    m_mpv->setProperty(it.key(), it.value());
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

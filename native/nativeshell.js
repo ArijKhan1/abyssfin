@@ -444,15 +444,33 @@ async function showSettingsModal() {
 
             const values = jmpInfo.settings[section];
             const settings = jmpInfo.settingsDescriptions[section];
+            if (!values || !settings)
+                return;
 
+            const sectionTitles = {
+                main: "General",
+                audio: "Audio",
+                video: "Video",
+                subtitles: "Subtitle Appearance",
+                watch: "Watch Extras",
+                other: "Advanced"
+            };
             const legend = document.createElement("legend");
             const legendHeader = document.createElement("h2");
-            legendHeader.textContent = section;
-            legendHeader.style.textTransform = "capitalize";
+            legendHeader.textContent = sectionTitles[section] || section;
+            legendHeader.style.textTransform = sectionTitles[section] ? "none" : "capitalize";
             legend.appendChild(legendHeader);
             if (section == "other") {
                 const legendSubHeader = document.createElement("h4");
                 legendSubHeader.textContent = "Use this section to input custom MPV configuration. These will override the above settings.";
+                legend.appendChild(legendSubHeader);
+            } else if (section == "subtitles") {
+                const legendSubHeader = document.createElement("h4");
+                legendSubHeader.textContent = "Color, size, backing, outline, and font apply to MPV playback. Changes take effect on the current video.";
+                legend.appendChild(legendSubHeader);
+            } else if (section == "watch") {
+                const legendSubHeader = document.createElement("h4");
+                legendSubHeader.textContent = "Optional extras that use your Jellyfin plugins (Intro Skipper, Lyrics/LrcLib, AnimeThemes). Auto-skip is off unless you turn it on.";
                 legend.appendChild(legendSubHeader);
             }
             group.appendChild(legend);

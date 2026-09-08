@@ -49,6 +49,12 @@ bool handleAutomationCommand(LocalJsonServer* server, QLocalSocket* socket, cons
     InputComponent::Get().sendAction("previous");
   else if (cmd == "skip_intro")
     InputComponent::Get().sendAction("skip_intro");
+  else if (cmd == "skip_credits")
+    InputComponent::Get().sendAction("skip_credits");
+  else if (cmd == "cycle_sleep")
+    InputComponent::Get().sendAction("cycle_sleep");
+  else if (cmd == "play_theme")
+    InputComponent::Get().sendAction("play_theme");
   else if (cmd == "pip" || cmd == "toggle_pip")
     WindowManager::Get().togglePiP();
   else if (cmd == "show" || cmd == "raise")
@@ -88,7 +94,8 @@ void InputSocket::clientConnected(QLocalSocket* socket)
   welcome.insert("automation", true);
   welcome.insert("socket", Paths::socketName("input"));
   welcome.insert("commands", QVariantList{
-    "play", "pause", "play_pause", "next", "previous", "skip_intro", "pip", "show", "quit",
+    "play", "pause", "play_pause", "next", "previous", "skip_intro", "skip_credits",
+    "cycle_sleep", "play_theme", "pip", "show", "quit",
     "fullscreen", "seek", "volume"
   });
 

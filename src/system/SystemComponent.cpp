@@ -584,6 +584,7 @@ QString SystemComponent::getNativeShellScript()
       ":/web-client/extension/updatePlugin.js",
       ":/web-client/extension/connectivityHelper.js",
       ":/web-client/extension/playbackHelpers.js",
+      ":/web-client/extension/watchHelpers.js",
       ":/web-client/extension/abyssTheme.js",
       ":/web-client/extension/abyssSpotlight.js",
     ":/web-client/extension/downloadBridge.js",

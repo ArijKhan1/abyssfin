@@ -53,7 +53,7 @@
       {
         "value": "alwaysOnTop",
         "display_name": "Always on Top",
-        "help": "Keeps Jellyfin on top of other windows.",
+        "help": "Keeps the main Abyssfin window above other apps. This does not control Picture-in-Picture; use “Allow PiP Behind Other Windows” for that.",
         "default": false
       },
       {
@@ -179,8 +179,14 @@
       {
         "value": "pipSnapToCorner",
         "display_name": "Snap PiP to Corners",
-        "help": "Magnetically snaps PiP to a corner only when you release it near that corner. Drag anywhere else to place it freely. Double-click PiP to cycle corners.",
+        "help": "When enabled, releasing the Picture-in-Picture window near a screen corner snaps it there. Drag farther away to leave it free-floating. Double-click PiP to cycle through the four corners. Does not affect whether PiP stays above other windows.",
         "default": true
+      },
+      {
+        "value": "pipAllowBehindWindows",
+        "display_name": "Allow PiP Behind Other Windows",
+        "help": "By default, Picture-in-Picture stays above every other window so video remains visible while you work. Turn this on if you want PiP to behave like a normal window and fall behind apps you click on. You can still bring it forward by clicking the PiP window or the Abyssfin dock/taskbar icon. Not available on Wayland Linux, where PiP is disabled.",
+        "default": false
       },
       {
         "value": "enableAutomationApi",
@@ -527,23 +533,147 @@
     "order": 4,
     "values": [
       {
-        "value": "ass_scale_border_and_shadow",
-        "display_name": "ASS Scale Border and Shadow",
-        "help": "For ASS format subtitles, ensures that the text borders and shadows scale proportionally with the resolution.",
-        "default": true
+        "value": "size",
+        "display_name": "Size",
+        "help": "Subtitle text size. Takes effect immediately during playback.",
+        "default": -1,
+        "possible_values": [
+          [ -1, "Default" ],
+          [ 18, "Tiny" ],
+          [ 24, "Small" ],
+          [ 32, "Normal" ],
+          [ 42, "Large" ],
+          [ 52, "Extra Large" ],
+          [ 60, "Huge" ],
+          [ 80, "Enormous" ]
+        ]
       },
       {
-        "value": "ass_style_override",
-        "display_name": "ASS Style Override",
-        "help": "Control whether user style overrides should be applied. Note that all of these overrides try to be somewhat smart about figuring out whether or not a subtitle is considered a \"sign\".\n\nNo: Render subtitles as specified by the subtitle scripts, without overrides.\nYes: Apply all the --sub-ass-* style override options. Changing the default for any of these options can lead to incorrect subtitle rendering (default).\nForce: Like yes, but also force all --sub-* options. Can break rendering easily.\nScale: Like yes, but also apply --sub-scale.\nStrip: Radically strip all ASS tags and styles from the subtitle. This is equivalent to the old --no-ass / --no-sub-ass options.\n\nThis also controls some bitmap subtitle overrides, as well as HTML tags in formats like SRT, despite the name of the option.",
+        "value": "color",
+        "display_name": "Text Color",
+        "help": "Color of the subtitle text.",
         "default": "",
         "possible_values": [
           [ "", "Default" ],
-          [ "yes", "Yes" ],
-          [ "no", "No" ],
-          [ "force", "Force" ],
-          [ "scale", "Scale" ],
-          [ "strip", "Strip" ]
+          [ "#FFFFFF", "White" ],
+          [ "#FFFF00", "Yellow" ],
+          [ "#FBF93E", "Bright Yellow" ],
+          [ "#FFFFCC", "Light Yellow" ],
+          [ "#00FFFF", "Cyan" ],
+          [ "#00FF00", "Green" ],
+          [ "#FF00FF", "Magenta" ],
+          [ "#FF0000", "Red" ],
+          [ "#0080FF", "Blue" ],
+          [ "#FF8C00", "Orange" ],
+          [ "#000000", "Black" ],
+          [ "#EEEEEE", "Light Grey" ],
+          [ "#CCCCCC", "Grey" ]
+        ]
+      },
+      {
+        "value": "font",
+        "display_name": "Font",
+        "help": "Installed system fonts, plus a few generics. Comic Sans is included for the jokes.",
+        "default": "",
+        "possible_values": [
+          [ "", "Default" ],
+          [ "sans-serif", "Sans-Serif" ],
+          [ "serif", "Serif" ],
+          [ "monospace", "Monospace" ],
+          [ "Comic Sans MS", "Comic Sans MS" ]
+        ]
+      },
+      {
+        "value": "bold",
+        "display_name": "Bold",
+        "help": "Render subtitle text in bold.",
+        "default": false
+      },
+      {
+        "value": "italic",
+        "display_name": "Italic",
+        "help": "Render subtitle text in italic.",
+        "default": false
+      },
+      {
+        "value": "background_color",
+        "display_name": "Backing Color",
+        "help": "Solid box behind the text. Pick a color to enable backing; opacity defaults to 50% if you leave opacity on Default.",
+        "default": "",
+        "possible_values": [
+          [ "", "None" ],
+          [ "#000000", "Black" ],
+          [ "#FFFFFF", "White" ],
+          [ "#222222", "Dark Grey" ],
+          [ "#EEEEEE", "Light Grey" ],
+          [ "#FFFF00", "Yellow" ]
+        ]
+      },
+      {
+        "value": "background_transparency",
+        "display_name": "Backing Opacity",
+        "help": "How solid the backing box is. Default is 50% when a backing color is set.",
+        "default": "",
+        "possible_values": [
+          [ "", "Default" ],
+          [ "FF", "100% (solid)" ],
+          [ "C0", "75%" ],
+          [ "80", "50%" ],
+          [ "40", "25%" ],
+          [ "00", "0% (off)" ]
+        ]
+      },
+      {
+        "value": "border_size",
+        "display_name": "Outline Size",
+        "help": "Thickness of the text outline. Set to None if you are using a backing box instead.",
+        "default": -1,
+        "possible_values": [
+          [ -1, "Default" ],
+          [ 0, "None" ],
+          [ 1, "Tiny" ],
+          [ 2, "Small" ],
+          [ 3, "Normal" ],
+          [ 4, "Large" ],
+          [ 5, "Huge" ]
+        ]
+      },
+      {
+        "value": "border_color",
+        "display_name": "Outline Color",
+        "help": "Color of the text outline.",
+        "default": "",
+        "possible_values": [
+          [ "", "Default" ],
+          [ "#000000", "Black" ],
+          [ "#FFFFFF", "White" ],
+          [ "#FFFF00", "Yellow" ],
+          [ "#00FFFF", "Cyan" ],
+          [ "#FF0000", "Red" ]
+        ]
+      },
+      {
+        "value": "shadow_size",
+        "display_name": "Shadow",
+        "help": "Drop shadow offset behind the text.",
+        "default": -1,
+        "possible_values": [
+          [ -1, "Off" ],
+          [ 1, "Small" ],
+          [ 2, "Medium" ],
+          [ 3, "Large" ],
+          [ 4, "Huge" ]
+        ]
+      },
+      {
+        "value": "shadow_color",
+        "display_name": "Shadow Color",
+        "default": "",
+        "possible_values": [
+          [ "", "Default (Black)" ],
+          [ "#000000", "Black" ],
+          [ "#FFFFFF", "White" ],
+          [ "#222222", "Dark Grey" ]
         ]
       },
       {
@@ -561,104 +691,24 @@
         ]
       },
       {
-        "value": "color",
-        "display_name": "Color",
+        "value": "ass_style_override",
+        "display_name": "Styled Subtitle Override",
+        "help": "How strongly to apply the options above to ASS/SSA subtitles.\n\nDefault: automatically force your style when you change color, size, font, or backing.\nNo: keep the file's original styling.\nForce: always apply your style, including to on-screen signs.",
         "default": "",
         "possible_values": [
-          [ "", "Default" ],
-          [ "#000000", "Black" ],
-          [ "#FFFFFF", "White" ],
-          [ "#EEEEEE", "Light Grey" ],
-          [ "#CCCCCC", "Blended Light Grey" ],
-          [ "#FBF93E", "Yellow" ],
-          [ "#FFFFCC", "Light Yellow" ],
-          [ "#EEEDB8", "Blended Light Yellow" ]
+          [ "", "Default (auto)" ],
+          [ "yes", "Yes" ],
+          [ "no", "No" ],
+          [ "force", "Force" ],
+          [ "scale", "Scale only" ],
+          [ "strip", "Strip styles" ]
         ]
       },
       {
-        "value": "border_color",
-        "display_name": "Border Color",
-        "default": "",
-        "possible_values": [
-          [ "", "Default" ],
-          [ "#000000", "Black" ],
-          [ "#FFFFFF", "White" ],
-          [ "#EEEEEE", "Light Grey" ],
-          [ "#CCCCCC", "Blended Light Grey" ],
-          [ "#FBF93E", "Yellow" ],
-          [ "#FFFFCC", "Light Yellow" ],
-          [ "#EEEDB8", "Blended Light Yellow" ]
-        ]
-      },
-      {
-        "value": "border_size",
-        "display_name": "Border Size",
-        "default": -1,
-        "possible_values": [
-          [ -1, "Default" ],
-          [ 0, "None" ],
-          [ 1, "Tiny" ],
-          [ 2, "Small" ],
-          [ 3, "Normal" ],
-          [ 4, "Large" ],
-          [ 5, "Huge" ]
-        ]
-      },
-      {
-        "value": "background_color",
-        "display_name": "Background Color",
-        "default": "",
-        "possible_values": [
-          [ "", "Default" ],
-          [ "#000000", "Black" ],
-          [ "#FFFFFF", "White" ],
-          [ "#EEEEEE", "Light Grey" ],
-          [ "#CCCCCC", "Blended Light Grey" ],
-          [ "#FBF93E", "Yellow" ],
-          [ "#FFFFCC", "Light Yellow" ],
-          [ "#EEEDB8", "Blended Light Yellow" ]
-        ]
-      },
-      {
-        "value": "background_transparency",
-        "display_name": "Background Transparency",
-        "default": "",
-        "possible_values": [
-          [ "", "Default" ],
-          [ "FF", "0%" ],
-          [ "C0", "25%" ],
-          [ "80", "50%" ],
-          [ "40", "75%" ],
-          [ "00", "100%" ]
-        ]
-      },
-      {
-        "value": "size",
-        "display_name": "Size",
-        "default": -1,
-        "possible_values": [
-          [ -1, "Default" ],
-          [ 18, "Tiny" ],
-          [ 24, "Small" ],
-          [ 32, "Normal" ],
-          [ 42, "Large" ],
-          [ 60, "Huge" ]
-        ]
-      },
-      {
-        "value": "font",
-        "display_name": "Font",
-        "default": "sans-serif",
-        "possible_values": [
-          [ "", "Default" ],
-          [ "serif", "Serif" ],
-          [ "sans-serif", "Sans-Serif" ],
-          [ "script", "Script" ],
-          [ "monospace", "Monospace" ],
-          [ "display", "Display" ],
-          [ "cursive", "Cursive" ],
-          [ "fantasy", "Fantasy" ]
-        ]
+        "value": "ass_scale_border_and_shadow",
+        "display_name": "Scale Outline With Resolution",
+        "help": "For ASS subtitles, keep outlines and shadows proportional when the video resolution changes.",
+        "default": true
       }
     ]
   },
@@ -755,6 +805,86 @@
           "default": false,
           "platforms": [ "oe" ]
         }
+    ]
+  },
+  {
+    "section": "watch",
+    "order": 5,
+    "values": [
+      {
+        "value": "autoSkipIntro",
+        "display_name": "Auto-Skip Intros",
+        "help": "When Intro Skipper (or Jellyfin Media Segments) has marked an opening, Abyssfin jumps past it automatically. Leave this off if you want to press Skip Intro yourself from the tray, OSD, or Ctrl+Shift+I.",
+        "default": false
+      },
+      {
+        "value": "autoSkipCredits",
+        "display_name": "Auto-Skip Credits",
+        "help": "When an ending/credits segment is detected, skip ahead to the next item in the queue. Requires Intro Skipper or chapter names like Credits/Outro. This skips the prompt below.",
+        "default": false
+      },
+      {
+        "value": "autoSkipRecap",
+        "display_name": "Auto-Skip Recaps",
+        "help": "Skip “previously on” recap segments when the server has marked them. Off by default because recaps are easy to confuse with cold opens.",
+        "default": false
+      },
+      {
+        "value": "promptNextEpisode",
+        "display_name": "Prompt at Credits",
+        "help": "Show a Next episode / Stay overlay when credits start, if auto-skip credits is off. Uses Intro Skipper outro segments, or the last 25 seconds when no segment exists.",
+        "default": true
+      },
+      {
+        "value": "sleepTimer",
+        "display_name": "Sleep Timer",
+        "help": "Pause playback after a delay. End of episode waits until the current video is almost finished. The menu-bar/tray Sleep Timer button cycles these same options. Default is Off.",
+        "default": "off",
+        "possible_values": [
+          [ "off", "Off" ],
+          [ "15", "15 minutes" ],
+          [ "30", "30 minutes" ],
+          [ "45", "45 minutes" ],
+          [ "60", "60 minutes" ],
+          [ "episode", "End of episode" ]
+        ]
+      },
+      {
+        "value": "sleepTimerFade",
+        "display_name": "Fade Out Before Sleep",
+        "help": "Lower volume over 15 seconds before the sleep timer pauses. Volume is restored after pause so the next play is not silent.",
+        "default": true
+      },
+      {
+        "value": "enableLyricsOverlay",
+        "display_name": "Lyrics Overlay",
+        "help": "Show synced or plain lyrics during music playback. Uses lyrics already stored on the server by the Lyrics / LrcLib plugins. Toggle with Ctrl+Shift+L. Has no effect on video.",
+        "default": true
+      },
+      {
+        "value": "rememberSeriesTracks",
+        "display_name": "Remember Audio & Subtitles Per Series",
+        "help": "When you pick an audio language or subtitle track, reuse it for later episodes of the same series. Applies to MPV playback only. Per-title movies use the item id instead of a series id.",
+        "default": true
+      },
+      {
+        "value": "enableAnimeThemesButton",
+        "display_name": "Show OP/ED Button",
+        "help": "Adds an OP/ED button on item pages that plays theme videos from Jellyfin Theme Media (the AnimeThemes plugin). If a title has no theme videos, the button still appears but reports that nothing is available. This never replaces normal Play.",
+        "default": true
+      }
+    ]
+  },
+  {
+    "section": "trackprefs",
+    "hidden": true,
+    "storage": true,
+    "values": [
+      {
+        "value": "placeholder",
+        "default": "",
+        "hidden": true
+      }
     ]
   },
   {

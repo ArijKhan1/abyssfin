@@ -59,6 +59,8 @@ class inputPlugin {
                         inputManager.handleCommand('pause', {});
                     } else if (action === 'skip_intro') {
                         window.abyssfinPlayback?.skipIntro(playbackManager);
+                    } else if (window.abyssfinWatch?.handleAction(action)) {
+                        // Watch extras: credits skip, sleep timer, lyrics, OP/ED
                     } else {
                         if (remap.hasOwnProperty(action)) {
                             action = remap[action];

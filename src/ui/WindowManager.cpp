@@ -586,12 +586,21 @@ void WindowManager::updateMainSectionSettings(const QVariantMap& values)
       setFullScreen(fs);
   }
 
-  // Always on top
-  if (values.contains("alwaysOnTop"))
+  // Always on top (main window only; PiP uses pipAllowBehindWindows)
+  if (values.contains("alwaysOnTop") && !m_pip.active)
   {
     bool onTop = values["alwaysOnTop"].toBool();
     if (onTop != isAlwaysOnTop())
       setAlwaysOnTop(onTop);
+  }
+
+  // PiP layering: apply live if already in Picture-in-Picture
+  if (values.contains("pipAllowBehindWindows") && m_pip.active)
+  {
+    bool allowBehind = values["pipAllowBehindWindows"].toBool();
+    bool stayOnTop = !allowBehind;
+    if (stayOnTop != isAlwaysOnTop())
+      setAlwaysOnTop(stayOnTop);
   }
 
   // Web mode
@@ -1291,7 +1300,9 @@ void WindowManager::enterPiP()
   m_window->setGeometry(pipRect);
 
   m_window->setFlags(Qt::FramelessWindowHint);
-  setAlwaysOnTop(true);
+  const bool allowBehind = SettingsComponent::Get()
+      .value(SETTINGS_SECTION_MAIN, "pipAllowBehindWindows").toBool();
+  setAlwaysOnTop(!allowBehind);
 
   connect(m_window, &QQuickWindow::widthChanged, this, &WindowManager::enforcePipAspectRatio);
   emit pipModeChanged(true);

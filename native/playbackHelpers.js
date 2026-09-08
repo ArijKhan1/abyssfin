@@ -6,9 +6,36 @@
         return Math.floor(Number(ticks) / 10000);
     }
 
-    function isIntroSegment(segment) {
+    function segmentTypeName(segment) {
         const type = segment?.Type ?? segment?.SegmentType;
-        return type === 'Intro' || type === 5 || String(type).toLowerCase() === 'intro';
+        if (typeof type === 'number') {
+            const names = ['unknown', 'commercial', 'preview', 'recap', 'outro', 'intro'];
+            return names[type] || 'unknown';
+        }
+        return String(type || '').toLowerCase();
+    }
+
+    function isIntroSegment(segment) {
+        return segmentTypeName(segment) === 'intro';
+    }
+
+    function isOutroSegment(segment) {
+        const name = segmentTypeName(segment);
+        return name === 'outro' || name === 'credits' || name === 'ending';
+    }
+
+    function isRecapSegment(segment) {
+        return segmentTypeName(segment) === 'recap';
+    }
+
+    function segmentBoundsMs(segment) {
+        if (!segment)
+            return null;
+        const startMs = ticksToMs(segment.StartTicks ?? segment.StartPositionTicks ?? segment.Start);
+        const endMs = ticksToMs(segment.EndTicks ?? segment.EndPositionTicks ?? segment.End);
+        if (endMs === null)
+            return null;
+        return { startMs: startMs == null ? 0 : startMs, endMs };
     }
 
     function seekPlayback(playbackManager, positionMs, player) {
@@ -40,21 +67,25 @@
         return false;
     }
 
-    function seekPastIntroChapter(playbackManager, item, player, mediaSource) {
+    function chapterMatches(chapter, pattern) {
+        return pattern.test(chapter?.Name || '');
+    }
+
+    function seekPastMatchingChapter(playbackManager, item, player, mediaSource, pattern) {
         const chapters = mediaSource?.Chapters || item?.Chapters;
         if (!Array.isArray(chapters)) {
             return false;
         }
 
-        const introIndex = chapters.findIndex((chapter) => /intro/i.test(chapter.Name || ''));
-        if (introIndex < 0) {
+        const matchIndex = chapters.findIndex((chapter) => chapterMatches(chapter, pattern));
+        if (matchIndex < 0) {
             return false;
         }
 
-        const introChapter = chapters[introIndex];
-        let endMs = ticksToMs(introChapter.EndPositionTicks);
-        if (endMs === null && introIndex + 1 < chapters.length) {
-            endMs = ticksToMs(chapters[introIndex + 1].StartPositionTicks);
+        const chapter = chapters[matchIndex];
+        let endMs = ticksToMs(chapter.EndPositionTicks);
+        if (endMs === null && matchIndex + 1 < chapters.length) {
+            endMs = ticksToMs(chapters[matchIndex + 1].StartPositionTicks);
         }
 
         if (endMs === null) {
@@ -64,29 +95,110 @@
         return seekPlayback(playbackManager, endMs, player);
     }
 
-    async function seekPastIntroSegment(playbackManager, item, player) {
+    function seekPastIntroChapter(playbackManager, item, player, mediaSource) {
+        return seekPastMatchingChapter(playbackManager, item, player, mediaSource, /intro/i);
+    }
+
+    function collectEmbeddedSegments(item, mediaSource) {
+        const embedded = mediaSource?.MediaSegments || item?.MediaSegments;
+        return Array.isArray(embedded) ? embedded : [];
+    }
+
+    async function fetchMediaSegments(item) {
         const apiClient = window.ApiClient;
         if (!apiClient?.getJSON || !item?.Id) {
-            return false;
+            return [];
         }
 
         try {
             const response = await apiClient.getJSON(
-                apiClient.getUrl(`MediaSegments/${item.Id}`, { IncludeSegmentTypes: 'Intro' })
+                apiClient.getUrl(`MediaSegments/${item.Id}`)
             );
             const segments = response?.Items || response || [];
-            const intro = Array.isArray(segments)
-                ? segments.find(isIntroSegment)
-                : null;
-            const endMs = ticksToMs(intro?.EndTicks || intro?.EndPositionTicks);
-            if (endMs === null) {
-                return false;
-            }
-            return seekPlayback(playbackManager, endMs, player);
+            return Array.isArray(segments) ? segments : [];
         } catch (error) {
-            console.warn('Abyssfin: MediaSegments intro skip failed', error);
-            return false;
+            console.warn('Abyssfin: MediaSegments fetch failed', error);
+            return [];
         }
+    }
+
+    function skipEmbeddedSegment(playbackManager, item, player, mediaSource, predicate) {
+        const match = collectEmbeddedSegments(item, mediaSource).find(predicate);
+        const bounds = segmentBoundsMs(match);
+        if (!bounds)
+            return false;
+        return seekPlayback(playbackManager, bounds.endMs, player);
+    }
+
+    async function seekPastNamedSegment(playbackManager, item, player, predicate) {
+        const segments = await fetchMediaSegments(item);
+        const match = segments.find(predicate);
+        const bounds = segmentBoundsMs(match);
+        if (!bounds)
+            return false;
+        return seekPlayback(playbackManager, bounds.endMs, player);
+    }
+
+    function currentPlaybackContext(playbackManager) {
+        if (!playbackManager)
+            return null;
+        const player = playbackManager._currentPlayer;
+        const state = typeof playbackManager.getPlayerState === 'function'
+            ? playbackManager.getPlayerState()
+            : null;
+        const item = state?.NowPlayingItem;
+        if (!item)
+            return null;
+        const mediaSource = playbackManager._currentMediaSource
+            || player?._mediaSource
+            || player?._currentMediaSource
+            || player?._currentPlayOptions?.mediaSource;
+        return { player, item, mediaSource, state };
+    }
+
+    function skipByKind(playbackManager, kind) {
+        const context = currentPlaybackContext(playbackManager);
+        if (!context)
+            return false;
+
+        const { player, item, mediaSource } = context;
+        const predicates = {
+            intro: { match: isIntroSegment, chapter: /intro/i, button: clickSkipIntroButton },
+            recap: { match: isRecapSegment, chapter: /recap/i, button: null },
+            credits: { match: isOutroSegment, chapter: /(credit|outro|ending)/i, button: clickSkipCreditsButton }
+        };
+        const spec = predicates[kind];
+        if (!spec)
+            return false;
+
+        if (spec.button && spec.button())
+            return true;
+        if (skipEmbeddedSegment(playbackManager, item, player, mediaSource, spec.match))
+            return true;
+        if (seekPastMatchingChapter(playbackManager, item, player, mediaSource, spec.chapter))
+            return true;
+        void seekPastNamedSegment(playbackManager, item, player, spec.match);
+        return false;
+    }
+
+    function clickSkipCreditsButton() {
+        const skipSelectors = [
+            '.btnSkipCredits',
+            '.buttonSkipOutro',
+            '.skip-credits-button',
+            '[data-action="skip-credits"]',
+            'button[class*="skip" i][class*="credit" i]',
+            'button[class*="skip" i][class*="outro" i]'
+        ];
+
+        for (const selector of skipSelectors) {
+            const btn = document.querySelector(selector);
+            if (btn && btn.offsetParent !== null && !btn.disabled) {
+                btn.click();
+                return true;
+            }
+        }
+        return false;
     }
 
     function releaseScrollLock() {
@@ -170,40 +282,21 @@
         attachOfflinePlayer,
         buildStreamHeaders,
         skipIntro(playbackManager) {
-            if (!playbackManager) {
-                return false;
-            }
-
-            if (clickSkipIntroButton()) {
-                return true;
-            }
-
-            const player = playbackManager._currentPlayer;
-            const state = playbackManager.getPlayerState();
-            const item = state?.NowPlayingItem;
-            if (!item) {
-                return false;
-            }
-
-            const mediaSource = playbackManager._currentMediaSource
-                || player?._mediaSource
-                || player?._currentMediaSource;
-
-            const embeddedSegments = mediaSource?.MediaSegments || item.MediaSegments;
-            if (Array.isArray(embeddedSegments)) {
-                const intro = embeddedSegments.find(isIntroSegment);
-                const endMs = ticksToMs(intro?.EndTicks || intro?.EndPositionTicks);
-                if (endMs !== null && seekPlayback(playbackManager, endMs, player)) {
-                    return true;
-                }
-            }
-
-            if (seekPastIntroChapter(playbackManager, item, player, mediaSource)) {
-                return true;
-            }
-
-            void seekPastIntroSegment(playbackManager, item, player);
-            return false;
-        }
+            return skipByKind(playbackManager, 'intro');
+        },
+        skipCredits(playbackManager) {
+            return skipByKind(playbackManager, 'credits');
+        },
+        skipRecap(playbackManager) {
+            return skipByKind(playbackManager, 'recap');
+        },
+        currentPlaybackContext,
+        fetchMediaSegments,
+        collectEmbeddedSegments,
+        segmentBoundsMs,
+        isIntroSegment,
+        isOutroSegment,
+        isRecapSegment,
+        ticksToMs
     };
 })();
