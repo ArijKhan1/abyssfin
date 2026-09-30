@@ -84,10 +84,10 @@ public:
   QString nowPlayingTitle() const { return m_nowPlayingTitle; }
   QString playbackState() const { return m_playbackState; }
 
-  // 0-100 volume 0=mute and 100=normal
-  // Ignored if no audio output active (e.g. when no file is playing).
+  // 0-100 slider position. 100 is the configured maximum, which can amplify
+  // past unity gain. Ignored if no audio output active (e.g. when no file is playing).
   Q_INVOKABLE virtual void setVolume(int volume);
-  // Returns 0 if no audio output active.
+  // Returns the slider position, 0-100.
   Q_INVOKABLE virtual int volume();
 
   // Ignored if no audio output active.
@@ -270,6 +270,8 @@ private:
   QVariantList findStreamsForURL(const QString &url);
   void reselectStream(const QVariant &streamSelection, MediaType target);
   void flushPendingMediaLoad();
+  int volumeCeiling() const;
+  void applyUserVolume();
 
   struct PendingMediaLoad
   {
@@ -305,6 +307,7 @@ private:
   bool m_selectStreamsInPreloadHook;
   bool m_hasPendingMediaLoad = false;
   bool m_mpvInitialized = false;
+  int m_userVolume = 100;
   PendingMediaLoad m_pendingMediaLoad;
   QStringList m_passthroughCodecs;
   QVariantMap m_serverMediaInfo;

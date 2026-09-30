@@ -132,7 +132,10 @@ bool EventFilter::eventFilter(QObject* watched, QEvent* event)
           QQuickItem* webView = window->findChild<QQuickItem*>("web");
 
           if (mouseEvent->button() == Qt::BackButton)
-            QMetaObject::invokeMethod(webView, "goBack");
+          {
+            if (!QMetaObject::invokeMethod(window, "navigateBack"))
+              QMetaObject::invokeMethod(webView, "goBack");
+          }
           else
             QMetaObject::invokeMethod(webView, "goForward");
         }

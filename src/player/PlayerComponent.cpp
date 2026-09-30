@@ -616,6 +616,8 @@ void PlayerComponent::handleMpvEvent(mpv_event *event)
     case MPV_EVENT_START_FILE:
     {
       m_inPlayback = true;
+      // Volume set before the audio output exists does not stick.
+      applyUserVolume();
       break;
     }
     case MPV_EVENT_END_FILE:
@@ -1075,25 +1077,40 @@ void PlayerComponent::setAudioDevice(const QString& name)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void PlayerComponent::setVolume(int volume)
 {
+  m_userVolume = qBound(0, volume, 100);
   if (!m_mpv) {
     qWarning() << "PlayerComponent::setVolume: mpv not initialized yet";
     return;
   }
-  // Will fail if no audio output opened (i.e. no file playing)
-  m_mpv->setProperty( "volume", volume);
+  applyUserVolume();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 int PlayerComponent::volume()
 {
-  if (!m_mpv) {
-    qWarning() << "PlayerComponent::volume: mpv not initialized yet";
-    return 0;
-  }
-  QVariant volume = m_mpv->getProperty( "volume");
-  if (volume.isValid())
-    return volume.toInt();
-  return 0;
+  return m_userVolume;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+int PlayerComponent::volumeCeiling() const
+{
+  const QVariant setting = SettingsComponent::Get().value(SETTINGS_SECTION_AUDIO, "maxvolume");
+  const int ceiling = setting.isValid() ? setting.toInt() : 130;
+  return qBound(100, ceiling, 1000);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void PlayerComponent::applyUserVolume()
+{
+  if (!m_mpv)
+    return;
+
+  const int ceiling = volumeCeiling();
+  // mpv gain is (volume/100)^3. Stretch the 0-100 slider so 100% reaches
+  // volume-max instead of stopping at unity gain.
+  const double scaled = (static_cast<double>(m_userVolume) * ceiling) / 100.0;
+  m_mpv->setProperty("volume-max", ceiling);
+  m_mpv->setProperty("volume", scaled);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1649,6 +1666,7 @@ void PlayerComponent::setAudioConfiguration()
     layout = "2.0";
 
   m_mpv->setProperty( "audio-channels", layout);
+  applyUserVolume();
 
   // if the user has indicated that PCM only works for stereo, and that
   // the receiver supports AC3, set this extra option that allows us to transcode

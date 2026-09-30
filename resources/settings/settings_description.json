@@ -296,6 +296,18 @@
         "default": true
       },
       {
+        "value": "maxvolume",
+        "display_name": "Maximum Volume",
+        "help": "How loud playback is when the volume slider is at 100%. The slider still runs from 0 to 100. 100% is the old limit and does not amplify. Higher values amplify past that, so full volume is louder than the website. 130% is about twice as loud. Very high settings can distort loud scenes.",
+        "default": 130,
+        "possible_values": [
+          [ 100, "100% (no boost)" ],
+          [ 130, "130% (about 2x)" ],
+          [ 160, "160% (about 4x)" ],
+          [ 200, "200% (about 8x)" ]
+        ]
+      },
+      {
         "value": "exclusive",
         "display_name": "Exclusive",
         "help": "Takes exclusive control of audio device. The default is disabled.",

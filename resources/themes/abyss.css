@@ -462,11 +462,13 @@ body:has(#itemDetailPage) .backdropImage {
 }
 
 /* Backdrop / detail ribbon */
-.itemBackdrop {
- height: 31vh !important;
+.layout-tv .itemBackdrop,
+.layout-desktop .itemBackdrop {
+ height: 20vh !important;
  display: inherit;
 }
 
+.layout-tv .detailRibbon,
 .layout-desktop .detailRibbon {
  background: rgba(0, 0, 0, .2) !important;
  margin-top: 0;
@@ -491,7 +493,6 @@ body:has(#itemDetailPage) .backdropImage {
  -webkit-filter: drop-shadow(0 0 10px rgba(2, 2, 2, 0.75));
  flex-shrink: 0;
  background-position: 0 50%;
- margin-top: -18vh;
  margin-bottom: 2vh;
 }
 

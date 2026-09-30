@@ -26,6 +26,9 @@ Window
   property string videoInfo: ""
   property string webUrl: ""
   property string currentWebUrl: web.url
+  // Jellyfin web root, e.g. http://host:8096/web — learned from the loaded client.
+  property string clientPrefix: ""
+  property string lastClientUrl: ""
 
   property bool showSystemTrayIcon: webDesktopMode && components.settings.trayIcon
   property string trayTooltip: {
@@ -90,6 +93,45 @@ Window
     web.url = components.settings.getWebClientUrl(mainWindow.webDesktopMode)
     restoreWindow()
     pendingPlayRetryTimer.startRetry()
+  }
+
+  function rememberClientUrl(urlString) {
+    const match = /^(https?:\/\/[^/?#]+)([^?#]*)/i.exec(urlString || "")
+    if (!match)
+      return
+    const path = match[2] || "/"
+    const webAt = path.toLowerCase().indexOf("/web")
+    if (webAt >= 0)
+      clientPrefix = match[1] + path.substring(0, webAt + 4)
+    if (clientPrefix && isClientPage(urlString))
+      lastClientUrl = urlString
+  }
+
+  function isClientPage(urlString) {
+    if (!clientPrefix || !urlString)
+      return false
+    const lowerUrl = urlString.toLowerCase()
+    const lowerPrefix = clientPrefix.toLowerCase()
+    return lowerUrl === lowerPrefix
+        || lowerUrl.startsWith(lowerPrefix + "/")
+        || lowerUrl.startsWith(lowerPrefix + "?")
+        || lowerUrl.startsWith(lowerPrefix + "#")
+  }
+
+  function isOutsideClient(urlString) {
+    if (!clientPrefix || !urlString)
+      return false
+    const lower = urlString.toLowerCase()
+    if (!lower.startsWith("http://") && !lower.startsWith("https://"))
+      return false
+    return !isClientPage(urlString)
+  }
+
+  function navigateBack() {
+    if (web.outsideClient && !web.canGoBack)
+      web.returnToClient()
+    else
+      web.goBack()
   }
 
   function playOfflineItem(itemId) {
@@ -208,7 +250,7 @@ Window
   Action
   {
     shortcut: StandardKey.Back
-    onTriggered: runWebAction(WebEngineView.Back)
+    onTriggered: mainWindow.navigateBack()
     id: action_back
   }
 
@@ -224,6 +266,13 @@ Window
     enabled: mainWindow.webDesktopMode
     shortcut: "Ctrl+0"
     onTriggered: web.zoomFactor = 1.0
+  }
+
+  Action
+  {
+    enabled: web.outsideClient && !components.download.offlinePlaybackActive
+    shortcut: "Escape"
+    onTriggered: web.returnToClient()
   }
 
   WebChannel
@@ -1098,13 +1147,113 @@ Window
     }
   }
 
+  Rectangle
+  {
+    id: externalReturnBar
+    z: 250
+    width: parent.width
+    height: web.outsideClient ? 44 : 0
+    visible: height > 0
+    color: "#101014"
+
+    Rectangle {
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      height: 1
+      color: "#343448"
+    }
+
+    RowLayout {
+      anchors.fill: parent
+      anchors.leftMargin: 10
+      anchors.rightMargin: 10
+      spacing: 8
+
+      Rectangle {
+        Layout.preferredWidth: backLabel.implicitWidth + 22
+        Layout.preferredHeight: 28
+        radius: 14
+        color: backMouse.pressed ? "#7A4594" : backMouse.containsMouse ? "#2A2A3A" : "#CC161622"
+        border.width: 1
+        border.color: "#A85DC3"
+
+        Text {
+          id: backLabel
+          anchors.centerIn: parent
+          text: "Back"
+          color: "#FFFFFF"
+          font.pixelSize: 13
+          font.weight: Font.Medium
+        }
+
+        MouseArea {
+          id: backMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: mainWindow.navigateBack()
+        }
+      }
+
+      Text {
+        Layout.fillWidth: true
+        text: web.outsideHost
+        color: "#B8B8C8"
+        font.pixelSize: 13
+        elide: Text.ElideRight
+        horizontalAlignment: Text.AlignHCenter
+      }
+
+      Rectangle {
+        Layout.preferredWidth: closeLabel.implicitWidth + 22
+        Layout.preferredHeight: 28
+        radius: 14
+        color: closeMouse.pressed ? "#7A4594" : closeMouse.containsMouse ? "#C07AD6" : "#A85DC3"
+
+        Text {
+          id: closeLabel
+          anchors.centerIn: parent
+          text: "Back to Jellyfin"
+          color: "#FFFFFF"
+          font.pixelSize: 13
+          font.weight: Font.Medium
+        }
+
+        MouseArea {
+          id: closeMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: web.returnToClient()
+        }
+      }
+    }
+  }
+
   WebEngineView
   {
     id: web
     objectName: "web"
+    y: externalReturnBar.height
     width: mainWindow.width
-    height: mainWindow.height
+    height: mainWindow.height - externalReturnBar.height
     z: 100
+    property bool outsideClient: false
+    property string outsideHost: ""
+
+    function returnToClient() {
+      const target = mainWindow.lastClientUrl || mainWindow.webUrl
+      if (target)
+        web.url = target
+    }
+
+    function syncOutsideState(urlString) {
+      mainWindow.rememberClientUrl(urlString)
+      outsideClient = mainWindow.isOutsideClient(urlString)
+      const hostMatch = /^(https?:\/\/[^/?#]+)/i.exec(urlString || "")
+      outsideHost = hostMatch ? hostMatch[1].replace(/^https?:\/\//i, "") : ""
+    }
     enabled: !offlineHub.panelOpen
     backgroundColor: "transparent"
 
@@ -1121,6 +1270,8 @@ Window
     settings.playbackRequiresUserGesture: false
     url: mainWindow.webUrl
     focus: true
+
+    onUrlChanged: syncOutsideState(url.toString())
     property string currentHoveredUrl: ""
     onLinkHovered: function(hoveredUrl)
     {
@@ -1164,6 +1315,7 @@ Window
       if (loadingInfo.status == WebEngineView.LoadStartedStatus)
       {
         console.log("WebEngineLoadRequest starting: " + loadingInfo.url);
+        syncOutsideState(loadingInfo.url.toString())
       }
       else if (loadingInfo.status == WebEngineView.LoadSucceededStatus)
       {
